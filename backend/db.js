@@ -1,3 +1,4 @@
+const { checkWorkspaceRole } = require("./utils/permissions");
 const { Pool } = require("pg");
 
 require("dotenv").config();

@@ -10,6 +10,8 @@ const fs = require("fs");
 
 const { Pool } = require("pg");
 
+const { checkWorkspaceRole } = require("./utils/permissions");
+
 const app = express();
 
 app.use(cors());
@@ -257,6 +259,22 @@ app.post("/pages", authenticateToken, async (req, res) => {
       parent_page_id,
     } = req.body;
 
+    // =============================
+    // PERMISSION CHECK
+    // =============================
+
+    const allowed = await checkWorkspaceRole(
+      req.user.id,
+      workspace_id,
+      ["admin", "editor"]
+    );
+
+    if (!allowed) {
+      return res.status(403).json({
+        error: "You do not have permission to create pages in this workspace",
+      });
+    }
+
     const result = await pool.query(
       `
       INSERT INTO pages
@@ -294,35 +312,6 @@ app.post("/pages", authenticateToken, async (req, res) => {
 // ATTACHMENTS
 // =============================
 
-app.get(
-  "/attachments/:pageId",
-  authenticateToken,
-  async (req, res) => {
-    try {
-      const { pageId } = req.params;
-
-      const result = await pool.query(
-        `
-        SELECT *
-        FROM attachments
-        WHERE page_id = $1
-        ORDER BY uploaded_at DESC
-        `,
-        [pageId]
-      );
-
-      res.json(result.rows);
-    } catch (err) {
-      console.error(err);
-
-      res.status(500).json({
-        error: "Failed to fetch attachments",
-      });
-    }
-  }
-);
-
-
 app.post(
   "/attachments/upload",
   authenticateToken,
@@ -330,6 +319,47 @@ app.post(
   async (req, res) => {
     try {
       const { page_id } = req.body;
+
+      // =============================
+      // GET PAGE WORKSPACE
+      // =============================
+
+      const pageResult = await pool.query(
+        `
+        SELECT workspace_id
+        FROM pages
+        WHERE id = $1
+        `,
+        [page_id]
+      );
+
+      if (pageResult.rows.length === 0) {
+        return res.status(404).json({
+          error: "Page not found",
+        });
+      }
+
+      const workspaceId = pageResult.rows[0].workspace_id;
+
+      // =============================
+      // PERMISSION CHECK
+      // =============================
+
+      const allowed = await checkWorkspaceRole(
+        req.user.id,
+        workspaceId,
+        ["admin", "editor"]
+      );
+
+      if (!allowed) {
+        return res.status(403).json({
+          error: "You do not have permission to upload files in this workspace",
+        });
+      }
+
+      // =============================
+      // FILE INSERT
+      // =============================
 
       const result = await pool.query(
         `
@@ -361,7 +391,6 @@ app.post(
     }
   }
 );
-
 
 // =============================
 // START SERVER
