@@ -313,11 +313,11 @@ export default function DashboardPage() {
       {/* SIDEBAR */}
       <div className="w-[268px] bg-white border-r border-[#e8edf3] flex flex-col shrink-0">
         {/* LOGO */}
-        <div className="h-[104px] border-b border-[#eef2f7] flex items-center justify-center px-3 bg-white">
+        <div className="h-[72px] border-b border-[#e8edf3] bg-white flex items-center justify-center shrink-0 overflow-hidden">
           <img
             src="/onespace.png"
             alt="OneSpace"
-            className="h-[78px] w-[230px] object-contain object-center"
+            className="h-[72px] w-auto scale-[2.15] object-contain"
           />
         </div>
 
