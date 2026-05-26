@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Bell, ChevronDown, FileText, LogOut, Pencil,
   Plus, Search, Settings, Share2, X, Users,
-  Moon, Sun, UserPlus, Check, Smile,
+  Moon, Sun, UserPlus, Check,
 } from "lucide-react";
 
 const LIGHT = {
@@ -22,7 +22,6 @@ const DARK = {
   modal:"bg-[#1a1d2e]", topbar:"bg-[#12151f] border-[#252840]", searchbg:"bg-[#1e2235]",
 };
 
-// Image wallpapers from /public/themes/
 const IMAGE_WALLPAPERS = [
   { id:"BlackSand",          name:"Black Sand",     style:{ backgroundImage:"url('/themes/BlackSand.png')",          backgroundSize:"cover", backgroundPosition:"center" } },
   { id:"Deepthought",        name:"Deep Thought",   style:{ backgroundImage:"url('/themes/Deepthought.png')",        backgroundSize:"cover", backgroundPosition:"center" } },
@@ -35,7 +34,6 @@ const IMAGE_WALLPAPERS = [
   { id:"Workedit",           name:"Work Edit",      style:{ backgroundImage:"url('/themes/Workedit.png')",           backgroundSize:"cover", backgroundPosition:"center" } },
 ];
 
-// Gradient wallpapers
 const GRADIENT_WALLPAPERS = [
   { id:"mesh-violet",  name:"Violet Mesh",  style:{ background:"linear-gradient(135deg,#4f46e5 0%,#7c3aed 40%,#a855f7 100%)" } },
   { id:"ocean-blue",   name:"Ocean Blue",   style:{ background:"linear-gradient(135deg,#1e40af 0%,#0ea5e9 60%,#38bdf8 100%)" } },
@@ -53,11 +51,9 @@ const GRADIENT_WALLPAPERS = [
 
 const ALL_WALLPAPERS = [...IMAGE_WALLPAPERS, ...GRADIENT_WALLPAPERS];
 
-const getWallpaperStyle = (id: string) => {
-  return ALL_WALLPAPERS.find(w => w.id === id)?.style || GRADIENT_WALLPAPERS[0].style;
-};
+const getWallpaperStyle = (id: string) =>
+  ALL_WALLPAPERS.find(w => w.id === id)?.style || GRADIENT_WALLPAPERS[0].style;
 
-// Space category icons — user picks manually, no auto-assignment
 const SPACE_ICONS = [
   { emoji:"💻", label:"IT",           bg:"linear-gradient(135deg,#0284c7,#0ea5e9)" },
   { emoji:"🔄", label:"DevOps",       bg:"linear-gradient(135deg,#ea580c,#f59e0b)" },
@@ -88,14 +84,10 @@ const SPACE_ICONS = [
 interface Workspace { id: number; name: string; description: string; }
 interface Page { id: number; title: string; content: string; workspace_id: number; }
 interface WorkspaceRole { workspace_id: number; role: string; }
-interface SpacePref {
-  wallpaper: string;
-  icon: string | null;    // null = no icon chosen
-  iconBg: string | null;
-}
+interface SpacePref { wallpaper: string; icon: string | null; iconBg: string | null; }
 
-// Space initials fallback
-const getInitials = (name: string) => name.trim().split(" ").slice(0, 2).map(w => w[0]?.toUpperCase()).join("");
+const getInitials = (name: string) =>
+  name.trim().split(" ").slice(0, 2).map(w => w[0]?.toUpperCase()).join("");
 
 function DashboardPage() {
   const router = useRouter();
@@ -121,8 +113,11 @@ function DashboardPage() {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [spaceSearch, setSpaceSearch] = useState("");
   const [shareCopied, setShareCopied] = useState(false);
+
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("viewer");
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteResult, setInviteResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const [spaceName, setSpaceName] = useState("");
   const [spaceDescription, setSpaceDescription] = useState("");
@@ -144,7 +139,6 @@ function DashboardPage() {
       const s = localStorage.getItem(`space_pref_${id}`);
       if (s) return JSON.parse(s);
     } catch {}
-    // Default: first gradient, NO icon selected
     return { wallpaper: GRADIENT_WALLPAPERS[0].id, icon: null, iconBg: null };
   };
 
@@ -217,7 +211,10 @@ function DashboardPage() {
     if (!spaceName.trim()) return;
     try {
       setCreatingSpace(true);
-      await axios.post("http://192.168.11.69:5000/workspaces", { name: spaceName.trim(), description: spaceDescription.trim() }, { headers: authHeaders() });
+      await axios.post("http://192.168.11.69:5000/workspaces",
+        { name: spaceName.trim(), description: spaceDescription.trim() },
+        { headers: authHeaders() }
+      );
       setShowCreateSpaceModal(false); setSpaceName(""); setSpaceDescription("");
       fetchWorkspaces();
     } catch (err) { console.error(err); } finally { setCreatingSpace(false); }
@@ -227,7 +224,10 @@ function DashboardPage() {
     if (!selectedWorkspace || !pageTitle.trim()) return;
     try {
       setCreatingPage(true);
-      await axios.post("http://192.168.11.69:5000/pages", { title: pageTitle.trim(), content: pageContent.trim(), workspace_id: selectedWorkspace.id, parent_page_id: null }, { headers: authHeaders() });
+      await axios.post("http://192.168.11.69:5000/pages",
+        { title: pageTitle.trim(), content: pageContent.trim(), workspace_id: selectedWorkspace.id, parent_page_id: null },
+        { headers: authHeaders() }
+      );
       setShowCreatePageModal(false); setPageTitle(""); setPageContent("");
       fetchPages(selectedWorkspace.id);
     } catch (err) { console.error(err); } finally { setCreatingPage(false); }
@@ -240,7 +240,10 @@ function DashboardPage() {
     const iconData = editIconIndex !== null ? SPACE_ICONS[editIconIndex] : null;
     try {
       setSavingSpace(true);
-      await axios.put(`http://192.168.11.69:5000/workspaces/${selectedWorkspace.id}`, { name: nextName, description: nextDesc }, { headers: authHeaders() });
+      await axios.put(`http://192.168.11.69:5000/workspaces/${selectedWorkspace.id}`,
+        { name: nextName, description: nextDesc },
+        { headers: authHeaders() }
+      );
       saveSpacePref(selectedWorkspace.id, {
         wallpaper: editWallpaper,
         icon: iconData?.emoji || null,
@@ -258,6 +261,25 @@ function DashboardPage() {
     const url = `${window.location.origin}/dashboard?workspace=${selectedWorkspace.id}`;
     try { await navigator.clipboard.writeText(url); setShareCopied(true); setTimeout(() => setShareCopied(false), 2000); }
     catch { window.alert(`Copy this link:\n${url}`); }
+  };
+
+  const sendInvite = async () => {
+    if (!inviteEmail.trim() || !selectedWorkspace) return;
+    try {
+      setInviteLoading(true);
+      setInviteResult(null);
+      const res = await axios.post(
+        `http://192.168.11.69:5000/workspaces/${selectedWorkspace.id}/invite`,
+        { email: inviteEmail.trim(), role: inviteRole },
+        { headers: authHeaders() }
+      );
+      setInviteResult({ type: "success", message: res.data.message });
+      setInviteEmail("");
+    } catch (err: any) {
+      setInviteResult({ type: "error", message: err?.response?.data?.error || "Invite failed" });
+    } finally {
+      setInviteLoading(false);
+    }
   };
 
   const logout = () => { localStorage.removeItem("token"); router.push("/login"); };
@@ -283,7 +305,7 @@ function DashboardPage() {
   return (
     <div className={`h-screen flex overflow-hidden ${T.bg} transition-colors duration-200`}>
 
-      {/* ══════════ SIDEBAR ══════════ */}
+      {/* ══ SIDEBAR ══ */}
       <div className={`w-[258px] ${T.sidebar} border-r ${T.border} flex flex-col shrink-0 transition-colors duration-200`}>
 
         <div className={`h-[62px] border-b ${T.border} flex items-center justify-center shrink-0 overflow-hidden`}>
@@ -331,7 +353,6 @@ function DashboardPage() {
                         ? (isDark ? "bg-[#1e2235] border border-[#3d4266]" : "bg-violet-50 border border-violet-200 shadow-sm")
                         : `border border-transparent ${T.hover}`
                     }`}>
-                    {/* Sidebar icon — only if user picked one, else initials */}
                     {pref.icon ? (
                       <div className="w-6 h-6 rounded-lg flex items-center justify-center text-sm shrink-0"
                         style={{ background: pref.iconBg || "#4f46e5" }}>
@@ -380,7 +401,7 @@ function DashboardPage() {
         </div>
       </div>
 
-      {/* ══════════ MAIN ══════════ */}
+      {/* ══ MAIN ══ */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Topbar */}
@@ -463,16 +484,13 @@ function DashboardPage() {
         <div className="flex-1 overflow-y-auto">
           {selectedWorkspace && currentPref ? (
             <div>
-              {/* BANNER — fixed height, no overflow hidden so icon can overlap */}
+              {/* Banner */}
               <div className="w-full h-[165px] relative" style={bannerStyle}>
-                {/* Subtle dark overlay at bottom for contrast */}
-                <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 55%, rgba(0,0,0,0.28))" }} />
+                <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom,transparent 55%,rgba(0,0,0,0.28))" }} />
               </div>
 
-              {/* SPACE IDENTITY — sits below banner, icon overlaps via negative margin */}
+              {/* Space identity */}
               <div className="relative z-10 flex flex-col items-center -mt-[38px] pb-5 px-6">
-
-                {/* Icon or Initials avatar */}
                 {currentPref.icon ? (
                   <div className="w-[72px] h-[72px] rounded-2xl flex items-center justify-center text-3xl shadow-xl border-[3px]"
                     style={{ background: currentPref.iconBg || "#4f46e5", borderColor: isDark ? "#1a1d2e" : "white" }}>
@@ -485,10 +503,9 @@ function DashboardPage() {
                   </div>
                 )}
 
-                {/* Space name + invite */}
                 <div className="flex items-center gap-2.5 mt-3">
                   <h1 className={`text-[23px] font-bold tracking-tight ${T.text}`}>{selectedWorkspace.name}</h1>
-                  <button onClick={() => setShowInviteModal(true)}
+                  <button onClick={() => { setShowInviteModal(true); setInviteResult(null); setInviteEmail(""); }}
                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-medium border ${T.border} ${T.modal} ${T.muted} ${T.hover} transition shadow-sm`}>
                     <UserPlus size={11} /> Invite
                   </button>
@@ -514,7 +531,7 @@ function DashboardPage() {
 
               <div className={`border-t ${T.border} mx-6`} />
 
-              {/* PAGES */}
+              {/* Pages */}
               <div className="px-6 py-5 max-w-[860px] mx-auto w-full">
                 <div className="flex items-center justify-between mb-4 gap-3">
                   <h2 className={`text-[15px] font-semibold ${T.text} shrink-0`}>
@@ -538,7 +555,7 @@ function DashboardPage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className={`text-[13.5px] font-semibold ${T.text} truncate group-hover:text-violet-500 transition`}>{p.title}</h3>
-                          <p className={`mt-0.5 text-[12px] ${T.hint} line-clamp-1`}>{p.content || "No content yet"}</p>
+                          <p className={`mt-0.5 text-[12px] ${T.hint} line-clamp-1`}>{p.content?.replace(/<[^>]*>/g, "") || "No content yet"}</p>
                         </div>
                       </div>
                     </button>
@@ -612,7 +629,7 @@ function DashboardPage() {
         </div>
       </div>
 
-      {/* ══════════ MODALS ══════════ */}
+      {/* ══ MODALS ══ */}
 
       {/* Create Space */}
       {showCreateSpaceModal && (
@@ -661,8 +678,8 @@ function DashboardPage() {
                   className={`w-full border rounded-xl px-4 py-2.5 text-[13.5px] focus:outline-none focus:border-violet-400 ${T.input}`} />
               </div>
               <div>
-                <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Content</label>
-                <textarea value={pageContent} onChange={e => setPageContent(e.target.value)} rows={4} placeholder="Write something…"
+                <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Content <span className={`${T.hint} font-normal`}>(optional — you can add rich content after creating)</span></label>
+                <textarea value={pageContent} onChange={e => setPageContent(e.target.value)} rows={3} placeholder="Brief description or leave blank…"
                   className={`w-full border rounded-xl px-4 py-2.5 text-[13.5px] focus:outline-none focus:border-violet-400 ${T.input} resize-none`} />
               </div>
             </div>
@@ -688,7 +705,6 @@ function DashboardPage() {
             </div>
 
             <div className="space-y-6">
-              {/* Name + Desc */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Name</label>
@@ -702,7 +718,6 @@ function DashboardPage() {
                 </div>
               </div>
 
-              {/* Icon picker — optional */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className={`text-[12px] font-medium ${T.muted}`}>Space Icon <span className={`${T.hint} font-normal`}>(optional)</span></label>
@@ -728,13 +743,10 @@ function DashboardPage() {
                 </div>
               </div>
 
-              {/* Banner wallpaper picker */}
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-2`}>
                   Banner <span className={`${T.hint} font-normal`}>— Photo or Gradient</span>
                 </label>
-
-                {/* Image wallpapers */}
                 <p className={`text-[11px] ${T.hint} mb-1.5 uppercase tracking-wider font-semibold`}>Photos</p>
                 <div className="grid grid-cols-5 gap-2 mb-3">
                   {IMAGE_WALLPAPERS.map(wp => (
@@ -749,8 +761,6 @@ function DashboardPage() {
                     </button>
                   ))}
                 </div>
-
-                {/* Gradient wallpapers */}
                 <p className={`text-[11px] ${T.hint} mb-1.5 uppercase tracking-wider font-semibold`}>Gradients</p>
                 <div className="grid grid-cols-6 gap-2">
                   {GRADIENT_WALLPAPERS.map(wp => (
@@ -767,11 +777,11 @@ function DashboardPage() {
                 </div>
               </div>
 
-              {/* Live Preview */}
+              {/* Preview */}
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-2`}>Preview</label>
                 <div className={`rounded-xl overflow-hidden border ${T.border}`}>
-                  <div className="h-16 relative" style={getWallpaperStyle(editWallpaper)}>
+                  <div className="h-14 relative" style={getWallpaperStyle(editWallpaper)}>
                     <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom,transparent 55%,rgba(0,0,0,0.28))" }} />
                   </div>
                   <div className={`px-4 py-3 ${T.card} flex items-center gap-3`}>
@@ -807,17 +817,29 @@ function DashboardPage() {
         </div>
       )}
 
-      {/* Invite Modal */}
+      {/* Invite Modal — with real API call */}
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className={`${T.modal} rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 border ${T.border}`}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h2 className={`text-[16px] font-semibold ${T.text}`}>Invite to {selectedWorkspace?.name}</h2>
-                <p className={`text-[12px] ${T.hint} mt-0.5`}>Add people to this space</p>
+                <p className={`text-[12px] ${T.hint} mt-0.5`}>An email invitation will be sent</p>
               </div>
-              <button onClick={() => setShowInviteModal(false)} className={T.hint}><X size={17} /></button>
+              <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className={T.hint}><X size={17} /></button>
             </div>
+
+            {/* Result message */}
+            {inviteResult && (
+              <div className={`mb-4 px-4 py-3 rounded-xl text-[13px] ${
+                inviteResult.type === "success"
+                  ? (isDark ? "bg-green-900/30 border border-green-700/40 text-green-300" : "bg-green-50 border border-green-200 text-green-700")
+                  : (isDark ? "bg-red-900/30 border border-red-700/40 text-red-300" : "bg-red-50 border border-red-200 text-red-700")
+              }`}>
+                {inviteResult.type === "success" ? "✓ " : "✕ "}{inviteResult.message}
+              </div>
+            )}
+
             <div className="space-y-4">
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Email address</label>
@@ -828,9 +850,17 @@ function DashboardPage() {
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-2`}>Role</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {[{ value: "viewer", label: "Viewer", desc: "Can read" }, { value: "editor", label: "Editor", desc: "Can edit" }, { value: "admin", label: "Admin", desc: "Full access" }].map(r => (
+                  {[
+                    { value: "viewer", label: "Viewer", desc: "Can read" },
+                    { value: "editor", label: "Editor", desc: "Can edit" },
+                    { value: "admin", label: "Admin", desc: "Full access" },
+                  ].map(r => (
                     <button key={r.value} onClick={() => setInviteRole(r.value)}
-                      className={`p-3 rounded-xl border-2 text-left transition ${inviteRole === r.value ? "border-violet-500 " + (isDark ? "bg-violet-900/30" : "bg-violet-50") : "border-transparent " + T.card + " " + T.hover}`}>
+                      className={`p-3 rounded-xl border-2 text-left transition ${
+                        inviteRole === r.value
+                          ? "border-violet-500 " + (isDark ? "bg-violet-900/30" : "bg-violet-50")
+                          : "border-transparent " + T.card + " " + T.hover
+                      }`}>
                       <div className={`text-[12.5px] font-semibold ${T.text}`}>{r.label}</div>
                       <div className={`text-[11px] ${T.hint}`}>{r.desc}</div>
                     </button>
@@ -839,21 +869,23 @@ function DashboardPage() {
               </div>
               <div className={`p-3 rounded-xl ${isDark ? "bg-blue-950/50 border border-blue-900/40" : "bg-blue-50 border border-blue-100"}`}>
                 <p className={`text-[12px] ${isDark ? "text-blue-300" : "text-blue-600"}`}>
-                  💡 The user must register with this email to access this space.
+                  💡 If they already have an account they will be added instantly. If not, they will receive a registration invite email.
                 </p>
               </div>
             </div>
+
             <div className="flex justify-end gap-2.5 mt-5">
-              <button onClick={() => setShowInviteModal(false)}
-                className={`px-4 py-2 text-[13px] ${T.muted} border ${T.border} rounded-xl ${T.hover} transition`}>Cancel</button>
-              <button
-                onClick={() => {
-                  window.alert(`Invite sent to ${inviteEmail} as ${inviteRole}.\n\nWire to backend:\nPOST /workspaces/${selectedWorkspace?.id}/members`);
-                  setShowInviteModal(false); setInviteEmail("");
-                }}
-                className="px-5 py-2 text-[13px] font-medium bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl hover:opacity-90 transition flex items-center gap-2">
-                <UserPlus size={13} /> Send Invite
+              <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }}
+                className={`px-4 py-2 text-[13px] ${T.muted} border ${T.border} rounded-xl ${T.hover} transition`}>
+                {inviteResult?.type === "success" ? "Close" : "Cancel"}
               </button>
+              {inviteResult?.type !== "success" && (
+                <button onClick={sendInvite} disabled={inviteLoading || !inviteEmail.trim()}
+                  className="px-5 py-2 text-[13px] font-medium bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl hover:opacity-90 transition disabled:opacity-50 flex items-center gap-2">
+                  <UserPlus size={13} />
+                  {inviteLoading ? "Sending…" : "Send Invite"}
+                </button>
+              )}
             </div>
           </div>
         </div>
