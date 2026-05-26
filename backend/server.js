@@ -60,7 +60,7 @@ function authenticateToken(req, res, next) {
 
 
 // =============================
-// FILE UPLOAD
+// FILE STORAGE
 // =============================
 
 const storage = multer.diskStorage({
@@ -161,7 +161,6 @@ app.get("/workspaces", authenticateToken, async (req, res) => {
   }
 });
 
-
 app.post("/workspaces", authenticateToken, async (req, res) => {
   try {
     const { name, description } = req.body;
@@ -219,7 +218,6 @@ app.get(
   }
 );
 
-
 app.get("/pages/:id", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -249,7 +247,6 @@ app.get("/pages/:id", authenticateToken, async (req, res) => {
   }
 });
 
-
 app.post("/pages", authenticateToken, async (req, res) => {
   try {
     const {
@@ -258,10 +255,6 @@ app.post("/pages", authenticateToken, async (req, res) => {
       workspace_id,
       parent_page_id,
     } = req.body;
-
-    // =============================
-    // PERMISSION CHECK
-    // =============================
 
     const allowed = await checkWorkspaceRole(
       req.user.id,
@@ -307,10 +300,99 @@ app.post("/pages", authenticateToken, async (req, res) => {
   }
 });
 
+app.put("/pages/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      title,
+      content,
+    } = req.body;
+
+    const pageResult = await pool.query(
+      `
+      SELECT workspace_id
+      FROM pages
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    if (pageResult.rows.length === 0) {
+      return res.status(404).json({
+        error: "Page not found",
+      });
+    }
+
+    const workspaceId = pageResult.rows[0].workspace_id;
+
+    const allowed = await checkWorkspaceRole(
+      req.user.id,
+      workspaceId,
+      ["admin", "editor"]
+    );
+
+    if (!allowed) {
+      return res.status(403).json({
+        error: "You do not have permission to edit this page",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE pages
+      SET
+        title = $1,
+        content = $2,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING *
+      `,
+      [title, content, id]
+    );
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: "Failed to update page",
+    });
+  }
+});
+
 
 // =============================
 // ATTACHMENTS
 // =============================
+
+app.get(
+  "/attachments/page/:pageId",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { pageId } = req.params;
+
+      const result = await pool.query(
+        `
+        SELECT *
+        FROM attachments
+        WHERE page_id = $1
+        ORDER BY uploaded_at DESC
+        `,
+        [pageId]
+      );
+
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Fetch attachments error:", error);
+
+      res.status(500).json({
+        error: "Failed to fetch attachments",
+      });
+    }
+  }
+);
 
 app.post(
   "/attachments/upload",
@@ -319,10 +401,6 @@ app.post(
   async (req, res) => {
     try {
       const { page_id } = req.body;
-
-      // =============================
-      // GET PAGE WORKSPACE
-      // =============================
 
       const pageResult = await pool.query(
         `
@@ -341,10 +419,6 @@ app.post(
 
       const workspaceId = pageResult.rows[0].workspace_id;
 
-      // =============================
-      // PERMISSION CHECK
-      // =============================
-
       const allowed = await checkWorkspaceRole(
         req.user.id,
         workspaceId,
@@ -357,18 +431,14 @@ app.post(
         });
       }
 
-      // =============================
-      // FILE INSERT
-      // =============================
-
       const result = await pool.query(
         `
         INSERT INTO attachments
         (
           page_id,
-          filename,
-          filepath,
-          mimetype
+          file_name,
+          file_path,
+          file_type
         )
         VALUES ($1, $2, $3, $4)
         RETURNING *
@@ -392,8 +462,9 @@ app.post(
   }
 );
 
+
 // =============================
-// START SERVER
+// SERVER
 // =============================
 
 const PORT = process.env.PORT || 5000;

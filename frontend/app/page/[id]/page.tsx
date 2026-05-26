@@ -10,7 +10,6 @@ import {
   ExternalLink,
   FileText,
   Pencil,
-  Upload,
   User,
   X,
 } from "lucide-react";
@@ -25,9 +24,9 @@ interface PageData {
 
 interface Attachment {
   id: number;
-  filename: string;
-  filepath: string;
-  mimetype: string;
+  file_name: string;
+  file_path: string;
+  file_type: string;
 }
 
 export default function PageView() {
@@ -85,7 +84,7 @@ export default function PageView() {
       const token = localStorage.getItem("token");
 
       const res = await axios.get(
-        `http://192.168.11.69:5000/attachments/${pageId}`,
+        `http://192.168.11.69:5000/attachments/page/${pageId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -106,6 +105,7 @@ export default function PageView() {
       setUploading(true);
 
       const token = localStorage.getItem("token");
+
       const formData = new FormData();
 
       formData.append("file", selectedFile);
@@ -123,6 +123,7 @@ export default function PageView() {
       );
 
       setSelectedFile(null);
+
       fetchAttachments();
     } catch (err) {
       console.error(err);
@@ -140,7 +141,6 @@ export default function PageView() {
     try {
       setSavingPage(true);
 
-      // Try to persist if the backend has an update route.
       await axios.put(
         `http://192.168.11.69:5000/pages/${pageId}`,
         {
@@ -227,7 +227,6 @@ export default function PageView() {
 
         {/* ATTACHMENTS */}
         <div className="mt-5 bg-white border border-[#ebeef5] rounded-[24px] shadow-sm overflow-hidden">
-          {/* TOP ROW */}
           <div className="px-7 py-5 border-b border-[#f1f5f9] flex items-center justify-between gap-6 flex-wrap">
             <div>
               <h2 className="text-[22px] font-bold text-[#111827]">
@@ -276,18 +275,18 @@ export default function PageView() {
 
                       <div className="min-w-0">
                         <h3 className="text-[14px] font-semibold text-[#111827] truncate max-w-[600px]">
-                          {file.filename}
+                          {file.file_name}
                         </h3>
 
                         <p className="mt-1 text-[12px] text-[#64748b]">
-                          {file.mimetype}
+                          {file.file_type}
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
                       <a
-                        href={`http://192.168.11.69:5000/uploads/${file.filepath}`}
+                        href={`http://192.168.11.69:5000/uploads/${file.file_path}`}
                         target="_blank"
                         rel="noreferrer"
                         className="h-[36px] px-4 rounded-xl border border-[#d1d5db] bg-white flex items-center gap-2 text-[12px] hover:border-violet-400 transition-all"
@@ -297,7 +296,7 @@ export default function PageView() {
                       </a>
 
                       <a
-                        href={`http://192.168.11.69:5000/uploads/${file.filepath}`}
+                        href={`http://192.168.11.69:5000/uploads/${file.file_path}`}
                         download
                         className="h-[36px] px-4 rounded-xl bg-violet-600 text-white flex items-center gap-2 text-[12px] hover:bg-violet-700 transition-all"
                       >
@@ -338,6 +337,7 @@ export default function PageView() {
               <label className="block text-[13px] font-medium text-[#334155] mb-2">
                 Title
               </label>
+
               <input
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
@@ -347,6 +347,7 @@ export default function PageView() {
               <label className="block text-[13px] font-medium text-[#334155] mb-2 mt-4">
                 Content
               </label>
+
               <textarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
