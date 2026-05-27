@@ -4,15 +4,24 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
 import dynamic from "next/dynamic";
-import { ArrowLeft, Clock, Download, ExternalLink, FileText, Pencil, Upload, X, User, Calendar, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import {
+  ArrowLeft, Clock, Download, ExternalLink, FileText,
+  Pencil, Upload, X, User, Calendar, ChevronDown,
+  ChevronUp, Trash2, AlertCircle,
+} from "lucide-react";
 
 const RichTextEditor = dynamic(() => import("../../../components/RichTextEditor"), { ssr: false });
 
 const DARK = { bg:"#0d0f18", card:"#1a1d2e", border:"#252840", text:"#e2e8f0", muted:"#8892a4", hint:"#55607a", input:"#1e2235", topbar:"#12151f" };
 const LIGHT = { bg:"#f4f6fb", card:"#ffffff", border:"#e8edf3", text:"#111827", muted:"#64748b", hint:"#94a3b8", input:"#f8fafc", topbar:"#ffffff" };
 
-interface PageData { id:number; title:string; content:string; workspace_id:number; created_at:string; updated_at:string; creator_name:string; }
-interface Attachment { id:number; file_name:string; file_path:string; file_type:string; uploaded_at:string; }
+interface PageData {
+  id:number; title:string; content:string; workspace_id:number;
+  created_at:string; updated_at:string; creator_name:string;
+}
+interface Attachment {
+  id:number; file_name:string; file_path:string; file_type:string; uploaded_at:string;
+}
 
 function estimateReadTime(content: string): number {
   const words = content.replace(/<[^>]*>/g,"").trim().split(/\s+/).length;
@@ -47,9 +56,11 @@ export default function PageView() {
   const [isDark, setIsDark] = useState(false);
   const [page, setPage] = useState<PageData | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [attachOpen, setAttachOpen] = useState(true);
+  const [deletingAttachId, setDeletingAttachId] = useState<number | null>(null);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -63,7 +74,6 @@ export default function PageView() {
   useEffect(() => {
     const saved = localStorage.getItem("theme");
     if (saved === "dark") setIsDark(true);
-    // Sync cookie
     const token = localStorage.getItem("token");
     if (token) document.cookie = `auth_token=${token}; path=/; max-age=${7*24*60*60}; SameSite=Lax`;
     if (pageId) { fetchPage(); fetchAttachments(); }
@@ -90,18 +100,69 @@ export default function PageView() {
     } catch (err) { console.error(err); }
   };
 
-  const uploadFile = async () => {
-    if (!selectedFile) return;
+  const downloadFile = async (filePath: string, fileName: string) => {
+    try {
+      const response = await axios.get(
+        `http://192.168.11.69:5000/uploads/${filePath}`,
+        {
+          responseType: "blob",
+          headers: authHeaders(),
+        }
+      );
+
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Download failed:", err);
+      alert("Failed to download file");
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedFiles(Array.from(e.target.files));
+    }
+    e.target.value = "";
+  };
+
+  const uploadFiles = async () => {
+    if (selectedFiles.length === 0) return;
     try {
       setUploading(true);
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("page_id", String(pageId));
-      await axios.post("http://192.168.11.69:5000/attachments/upload", formData, {
-        headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
-      });
-      setSelectedFile(null); fetchAttachments();
-    } catch (err) { console.error(err); } finally { setUploading(false); }
+      setUploadProgress(0);
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("page_id", String(pageId));
+        await axios.post("http://192.168.11.69:5000/attachments/upload", formData, {
+          headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
+        });
+        setUploadProgress(Math.round(((i + 1) / selectedFiles.length) * 100));
+      }
+      setSelectedFiles([]);
+      setUploadProgress(0);
+      fetchAttachments();
+    } catch (err) { console.error(err); }
+    finally { setUploading(false); }
+  };
+
+  const deleteAttachment = async (id: number, fileName: string) => {
+    if (!window.confirm(`Delete "${fileName}"?`)) return;
+    try {
+      setDeletingAttachId(id);
+      await axios.delete(`http://192.168.11.69:5000/attachments/${id}`, { headers: authHeaders() });
+      setAttachments(p => p.filter(a => a.id !== id));
+    } catch (err: any) {
+      alert(err?.response?.data?.error || "Failed to delete file");
+    } finally { setDeletingAttachId(null); }
   };
 
   const savePage = async () => {
@@ -114,7 +175,8 @@ export default function PageView() {
       );
       setPage(prev => prev ? { ...prev, title: editTitle.trim() || prev.title, content: editContent } : prev);
       setShowEditModal(false);
-    } catch (err) { console.error(err); } finally { setSavingPage(false); }
+    } catch (err) { console.error(err); }
+    finally { setSavingPage(false); }
   };
 
   const deletePage = async () => {
@@ -151,15 +213,7 @@ export default function PageView() {
         .page-content table td,.page-content table th{border:1px solid ${C.border};padding:10px 14px;font-size:0.9rem}
         .page-content table th{background:${isDark?"#1e2235":"#f3f4f6"};font-weight:600;color:${isDark?"#a5b4fc":"#374151"}}
         .page-content a{color:#7c3aed;text-decoration:underline}
-        .hljs-keyword,.hljs-selector-tag{color:#cba6f7}
-        .hljs-string,.hljs-attr{color:#a6e3a1}
-        .hljs-number{color:#fab387}
-        .hljs-comment{color:#6c7086;font-style:italic}
-        .hljs-title,.hljs-function{color:#89b4fa}
-        .hljs-built_in{color:#f38ba8}
-        .hljs-tag{color:#f38ba8}
-        .hljs-attribute{color:#89dceb}
-        .hljs-meta{color:#f9e2af}
+        .attach-row:hover{border-color:rgba(124,58,237,0.4) !important;background:${isDark?"rgba(30,34,53,0.8)":"#f5f3ff"} !important;}
       `}</style>
 
       {/* Topbar */}
@@ -170,13 +224,13 @@ export default function PageView() {
             <ArrowLeft size={15}/> Back to Dashboard
           </button>
           <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-            <button onClick={() => setIsDark(d => { localStorage.setItem("theme", !d?"dark":"light"); return !d; })}
-              style={{ width:"32px", height:"32px", borderRadius:"8px", border:`1px solid ${C.border}`, background:C.card, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:C.muted, fontSize:"14px" }}>
+            <button onClick={() => setIsDark(d => { localStorage.setItem("theme",!d?"dark":"light"); return !d; })}
+              style={{ width:"32px", height:"32px", borderRadius:"8px", border:`1px solid ${C.border}`, background:C.card, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"14px" }}>
               {isDark?"☀️":"🌙"}
             </button>
             <button onClick={() => setShowDeleteConfirm(true)}
               style={{ height:"36px", padding:"0 14px", borderRadius:"10px", border:"1px solid rgba(239,68,68,0.3)", background:isDark?"rgba(239,68,68,0.1)":"rgba(239,68,68,0.05)", color:"#ef4444", cursor:"pointer", fontSize:"13px", display:"flex", alignItems:"center", gap:"5px" }}>
-              <Trash2 size={13}/> Delete
+              <Trash2 size={13}/> Delete Page
             </button>
             <button onClick={() => setShowEditModal(true)}
               style={{ height:"36px", padding:"0 16px", borderRadius:"10px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", cursor:"pointer", fontSize:"13px", fontWeight:600, display:"flex", alignItems:"center", gap:"6px" }}>
@@ -189,8 +243,9 @@ export default function PageView() {
       {/* Main layout */}
       <div style={{ maxWidth:"1200px", margin:"0 auto", padding:"32px 24px", display:"flex", gap:"24px", alignItems:"flex-start" }}>
 
-        {/* Content */}
+        {/* Content column */}
         <div style={{ flex:1, minWidth:0 }}>
+          {/* Page header */}
           <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:"20px", padding:"32px 36px", marginBottom:"20px" }}>
             <div style={{ display:"inline-flex", alignItems:"center", gap:"6px", background:"rgba(124,58,237,0.1)", color:"#7c3aed", borderRadius:"20px", padding:"4px 12px", fontSize:"11px", fontWeight:700, letterSpacing:"0.05em", marginBottom:"16px" }}>
               <FileText size={11}/> DOCUMENT SPACE
@@ -210,7 +265,7 @@ export default function PageView() {
                 <>
                   <span style={{ color:C.hint }}>•</span>
                   <span style={{ display:"flex", alignItems:"center", gap:"5px" }}>
-                    <Clock size={13}/>Edited {formatDate(page?.updated_at)}
+                    <Clock size={13}/>Edited {formatDate(page.updated_at)}
                   </span>
                 </>
               )}
@@ -218,71 +273,126 @@ export default function PageView() {
               <span>{readTime} min read</span>
             </div>
           </div>
+
+          {/* Content */}
           <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:"20px", padding:"32px 36px", minHeight:"300px" }}>
             <div className="page-content" dangerouslySetInnerHTML={{ __html: renderContent(page?.content || "") }}/>
           </div>
         </div>
 
-        {/* Attachments sidebar */}
+        {/* ── ATTACHMENTS SIDEBAR ── */}
         <div style={{ width:"300px", flexShrink:0, position:"sticky", top:"80px" }}>
           <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:"20px", overflow:"hidden" }}>
+
+            {/* Header */}
             <button onClick={() => setAttachOpen(!attachOpen)}
               style={{ width:"100%", padding:"16px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", background:"none", border:"none", borderBottom:attachOpen?`1px solid ${C.border}`:"none", cursor:"pointer", color:C.text }}>
               <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
                 <span style={{ fontSize:"14px" }}>📎</span>
                 <span style={{ fontSize:"14px", fontWeight:600 }}>Attachments</span>
-                <span style={{ background:"rgba(124,58,237,0.1)", color:"#7c3aed", borderRadius:"10px", padding:"1px 8px", fontSize:"11px", fontWeight:600 }}>{attachments.length}</span>
+                <span style={{ background:"rgba(124,58,237,0.1)", color:"#7c3aed", borderRadius:"10px", padding:"1px 8px", fontSize:"11px", fontWeight:600 }}>
+                  {attachments.length}
+                </span>
               </div>
-              {attachOpen ? <ChevronUp size={15} style={{ color:C.hint }}/> : <ChevronDown size={15} style={{ color:C.hint }}/>}
+              {attachOpen ? <ChevronUp size={15} style={{ color:C.hint }}/> : <ChevronDown size={15} style={{ color:C.hint }}/>} 
             </button>
+
             {attachOpen && (
               <div style={{ padding:"16px" }}>
-                <div style={{ marginBottom:"12px" }}>
-                  <div style={{ border:`1.5px dashed ${C.border}`, borderRadius:"12px", padding:"12px", textAlign:"center", cursor:"pointer" }}
-                    onClick={() => document.getElementById("file-input-sidebar")?.click()}>
-                    <Upload size={20} style={{ color:C.hint, margin:"0 auto 4px" }}/>
-                    <p style={{ color:C.muted, fontSize:"12px", margin:"0 0 2px", fontWeight:500 }}>
-                      {selectedFile ? selectedFile.name : "Click to choose file"}
-                    </p>
-                    {selectedFile && <p style={{ color:C.hint, fontSize:"11px", margin:0 }}>{(selectedFile.size/1024/1024).toFixed(1)} MB</p>}
-                    <input id="file-input-sidebar" type="file" style={{ display:"none" }}
-                      onChange={e => { if(e.target.files?.[0]) setSelectedFile(e.target.files[0]); }}/>
+
+                {/* ── UPLOAD SECTION — multiple files ── */}
+                <div style={{ marginBottom:"14px" }}>
+                  <div
+                    style={{ border:`1.5px dashed ${selectedFiles.length > 0 ? "#7c3aed" : C.border}`, borderRadius:"12px", padding:"14px", textAlign:"center", cursor:"pointer", transition:"all 0.2s", background:selectedFiles.length > 0 ? (isDark?"rgba(124,58,237,0.08)":"rgba(124,58,237,0.04)") : "transparent" }}
+                    onClick={() => document.getElementById("file-input-multi")?.click()}>
+                    <Upload size={20} style={{ color:selectedFiles.length > 0 ? "#7c3aed" : C.hint, margin:"0 auto 6px", display:"block" }}/>
+                    {selectedFiles.length === 0 ? (
+                      <>
+                        <p style={{ color:C.muted, fontSize:"12px", margin:"0 0 2px", fontWeight:500 }}>Click to choose files</p>
+                        <p style={{ color:C.hint, fontSize:"11px", margin:0 }}>Multiple files supported</p>
+                      </>
+                    ) : (
+                      <>
+                        <p style={{ color:"#7c3aed", fontSize:"12px", margin:"0 0 2px", fontWeight:600 }}>
+                          {selectedFiles.length} file{selectedFiles.length > 1 ? "s" : ""} selected
+                        </p>
+                        <p style={{ color:C.hint, fontSize:"11px", margin:0 }}>
+                          {selectedFiles.map(f => f.name).join(", ").substring(0, 50)}{selectedFiles.map(f => f.name).join(", ").length > 50 ? "…" : ""}
+                        </p>
+                      </>
+                    )}
+                    <input
+                      id="file-input-multi"
+                      type="file"
+                      multiple
+                      style={{ display:"none" }}
+                      onChange={handleFileSelect}
+                    />
                   </div>
-                  {selectedFile && (
+
+                  {/* Upload progress */}
+                  {uploading && (
+                    <div style={{ marginTop:"8px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"4px" }}>
+                        <span style={{ color:C.muted, fontSize:"11px" }}>Uploading…</span>
+                        <span style={{ color:"#7c3aed", fontSize:"11px", fontWeight:600 }}>{uploadProgress}%</span>
+                      </div>
+                      <div style={{ height:"4px", background:isDark?"#252840":"#e5e7eb", borderRadius:"2px", overflow:"hidden" }}>
+                        <div style={{ height:"100%", width:`${uploadProgress}%`, background:"linear-gradient(90deg,#4f46e5,#7c3aed)", borderRadius:"2px", transition:"width 0.3s" }}/>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  {selectedFiles.length > 0 && !uploading && (
                     <div style={{ display:"flex", gap:"6px", marginTop:"8px" }}>
-                      <button onClick={uploadFile} disabled={uploading}
-                        style={{ flex:1, height:"32px", borderRadius:"8px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600, opacity:uploading?0.6:1 }}>
-                        {uploading?"Uploading…":"Upload"}
+                      <button onClick={uploadFiles}
+                        style={{ flex:1, height:"32px", borderRadius:"8px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:600 }}>
+                        Upload {selectedFiles.length > 1 ? `${selectedFiles.length} files` : "file"}
                       </button>
-                      <button onClick={() => setSelectedFile(null)}
+                      <button onClick={() => setSelectedFiles([])}
                         style={{ width:"32px", height:"32px", borderRadius:"8px", border:`1px solid ${C.border}`, background:C.card, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:C.muted }}>
                         <X size={13}/>
                       </button>
                     </div>
                   )}
                 </div>
+
+                {/* ── FILE LIST ── */}
                 <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
                   {attachments.length === 0 ? (
-                    <div style={{ textAlign:"center", padding:"16px 0", color:C.hint, fontSize:"12px" }}>No attachments yet</div>
+                    <div style={{ textAlign:"center", padding:"20px 0", color:C.hint, fontSize:"12px" }}>
+                      No attachments yet
+                    </div>
                   ) : (
                     attachments.map(file => (
-                      <div key={file.id} style={{ background:isDark?"rgba(30,34,53,0.6)":"#fafafa", border:`1px solid ${C.border}`, borderRadius:"10px", padding:"10px 12px" }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"6px" }}>
-                          <span style={{ fontSize:"18px" }}>{fileIcon(file.file_type)}</span>
+                      <div key={file.id} className="attach-row"
+                        style={{ background:isDark?"rgba(30,34,53,0.5)":"#fafafa", border:`1px solid ${C.border}`, borderRadius:"10px", padding:"10px 12px", transition:"all 0.15s" }}>
+                        {/* File info */}
+                        <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"8px" }}>
+                          <span style={{ fontSize:"18px", flexShrink:0 }}>{fileIcon(file.file_type)}</span>
                           <div style={{ flex:1, minWidth:0 }}>
                             <p style={{ color:C.text, fontSize:"12px", fontWeight:600, margin:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{file.file_name}</p>
                             <p style={{ color:C.hint, fontSize:"10.5px", margin:0 }}>{file.file_type.split("/")[1]?.toUpperCase()}</p>
                           </div>
                         </div>
+                        {/* Action buttons */}
                         <div style={{ display:"flex", gap:"4px" }}>
                           <a href={`http://192.168.11.69:5000/uploads/${file.file_path}`} target="_blank" rel="noreferrer"
                             style={{ flex:1, height:"26px", borderRadius:"6px", border:`1px solid ${C.border}`, background:C.card, color:C.muted, textDecoration:"none", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px", fontSize:"11px" }}>
-                            <ExternalLink size={11}/> Open
+                            <ExternalLink size={10}/> Open
                           </a>
-                          <a href={`http://192.168.11.69:5000/uploads/${file.file_path}`} download
-                            style={{ flex:1, height:"26px", borderRadius:"6px", background:"rgba(124,58,237,0.15)", color:"#7c3aed", textDecoration:"none", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px", fontSize:"11px", fontWeight:600 }}>
-                            <Download size={11}/> Save
-                          </a>
+                          <button
+                            onClick={() => downloadFile(file.file_path, file.file_name)}
+                            style={{ flex:1, height:"26px", borderRadius:"6px", border:"none", background:"rgba(124,58,237,0.12)", color:"#7c3aed", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px", fontSize:"11px", fontWeight:600 }}>
+                            <Download size={10}/> Save
+                            </button>
+                          <button
+                            onClick={() => deleteAttachment(file.id, file.file_name)}
+                            disabled={deletingAttachId === file.id}
+                            style={{ width:"26px", height:"26px", borderRadius:"6px", border:"1px solid rgba(239,68,68,0.3)", background:"rgba(239,68,68,0.05)", color:"#ef4444", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", opacity:deletingAttachId===file.id?0.5:1 }}>
+                            <Trash2 size={10}/>
+                          </button>
                         </div>
                       </div>
                     ))
@@ -294,7 +404,7 @@ export default function PageView() {
         </div>
       </div>
 
-      {/* Edit modal */}
+      {/* ── EDIT MODAL ── */}
       {showEditModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(6px)", zIndex:60, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"20px", overflowY:"auto" }}>
           <div style={{ background:isDark?"#12151f":"#ffffff", borderRadius:"20px", border:`1px solid ${C.border}`, width:"100%", maxWidth:"860px", overflow:"hidden", boxShadow:"0 24px 80px rgba(0,0,0,0.4)" }}>
@@ -330,7 +440,7 @@ export default function PageView() {
         </div>
       )}
 
-      {/* Delete confirm */}
+      {/* ── DELETE PAGE CONFIRM ── */}
       {showDeleteConfirm && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(6px)", zIndex:60, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
           <div style={{ background:isDark?"#1a1d2e":"#ffffff", borderRadius:"20px", border:`1px solid ${C.border}`, padding:"28px", maxWidth:"400px", width:"100%", textAlign:"center" }}>

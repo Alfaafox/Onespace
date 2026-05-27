@@ -44,7 +44,10 @@ const sendEmail = async (to, subject, html) => {
     return false;
   }
   try {
-    await transporter.sendMail({ from: process.env.SMTP_FROM || "OneSpace <noreply@onespace.com>", to, subject, html });
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || "OneSpace <noreply@onespace.com>",
+      to, subject, html,
+    });
     return true;
   } catch (err) { console.error("Email error:", err.message); return false; }
 };
@@ -97,7 +100,7 @@ const addedToSpaceEmailHTML = (username, spaceName, dashboardUrl) => `
 </div></body></html>`;
 
 // =============================
-// MIDDLEWARE
+// AUTH MIDDLEWARE
 // =============================
 
 function authenticateToken(req, res, next) {
@@ -184,7 +187,9 @@ app.post("/register", async (req, res) => {
     if (pendingInvites.rows.length > 0) await pool.query("DELETE FROM pending_invites WHERE email = $1", [email]);
     if (!emailSent) console.log(`\n[DEV] Verification link: ${verifyUrl}\n`);
     res.status(201).json({
-      message: emailSent ? "Account created. Please check your email to verify your account." : "Account created. Check server console for verification link.",
+      message: emailSent
+        ? "Account created. Please check your email to verify your account."
+        : "Account created. Check server console for verification link.",
       verifyUrl: emailSent ? undefined : verifyUrl,
     });
   } catch (err) { console.error(err); res.status(500).json({ error: "Registration failed" }); }
@@ -198,7 +203,10 @@ app.get("/verify", async (req, res) => {
       `SELECT id FROM users WHERE verification_token = $1 AND verification_expires > NOW()`, [token]
     );
     if (result.rows.length === 0) return res.status(400).json({ error: "Invalid or expired verification link" });
-    await pool.query(`UPDATE users SET verified = TRUE, verification_token = NULL, verification_expires = NULL WHERE id = $1`, [result.rows[0].id]);
+    await pool.query(
+      `UPDATE users SET verified = TRUE, verification_token = NULL, verification_expires = NULL WHERE id = $1`,
+      [result.rows[0].id]
+    );
     res.json({ message: "Email verified successfully. You can now log in." });
   } catch (err) { res.status(500).json({ error: "Verification failed" }); }
 });
@@ -209,11 +217,18 @@ app.post("/login", async (req, res) => {
     const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     if (result.rows.length === 0) return res.status(401).json({ error: "Invalid email or password" });
     const user = result.rows[0];
-    if (user.verified === false) return res.status(401).json({ error: "Please verify your email before logging in.", needsVerification: true });
+    if (user.verified === false) return res.status(401).json({
+      error: "Please verify your email before logging in.",
+      needsVerification: true,
+    });
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) return res.status(401).json({ error: "Invalid email or password" });
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
-    res.json({ token, user: { id: user.id, username: user.username, email: user.email, role: user.role } });
+    res.json({
+      token,
+      user: { id: user.id, username: user.username, email: user.email, role: user.role },
+      forcePasswordChange: user.force_password_change === true,
+    });
   } catch (err) { console.error(err); res.status(500).json({ error: "Login failed" }); }
 });
 
@@ -225,11 +240,31 @@ app.post("/resend-verification", async (req, res) => {
     if (result.rows[0].verified) return res.status(400).json({ error: "Account already verified" });
     const token = crypto.randomBytes(32).toString("hex");
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await pool.query("UPDATE users SET verification_token = $1, verification_expires = $2 WHERE email = $3", [token, expires, email]);
+    await pool.query(
+      "UPDATE users SET verification_token = $1, verification_expires = $2 WHERE email = $3",
+      [token, expires, email]
+    );
     const verifyUrl = `${FRONTEND_URL}/verify?token=${token}`;
     await sendEmail(email, "Verify your OneSpace account", verificationEmailHTML(result.rows[0].username, verifyUrl));
     res.json({ message: "Verification email resent" });
   } catch (err) { res.status(500).json({ error: "Failed to resend" }); }
+});
+
+// =============================
+// CHANGE PASSWORD
+// =============================
+
+app.post("/users/change-password", authenticateToken, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
+    const password_hash = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+      "UPDATE users SET password_hash = $1, force_password_change = FALSE WHERE id = $2",
+      [password_hash, req.user.id]
+    );
+    res.json({ message: "Password updated successfully" });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // =============================
@@ -241,7 +276,8 @@ app.get("/users/search", authenticateToken, async (req, res) => {
     const { q } = req.query;
     if (!q) return res.json([]);
     const result = await pool.query(
-      `SELECT id, username, email, role FROM users WHERE (username ILIKE $1 OR email ILIKE $1) AND id != $2 LIMIT 10`,
+      `SELECT id, username, email, role FROM users
+       WHERE (username ILIKE $1 OR email ILIKE $1) AND id != $2 LIMIT 10`,
       [`%${q}%`, req.user.id]
     );
     res.json(result.rows);
@@ -359,7 +395,11 @@ app.post("/workspaces/:id/invite", authenticateToken, async (req, res) => {
          ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = $3`,
         [req.params.id, existingUser.id, role]
       );
-      await sendEmail(email, `You've been added to ${spaceName} on OneSpace`, addedToSpaceEmailHTML(existingUser.username, spaceName, `${FRONTEND_URL}/dashboard?workspace=${req.params.id}`));
+      await sendEmail(
+        email,
+        `You've been added to ${spaceName} on OneSpace`,
+        addedToSpaceEmailHTML(existingUser.username, spaceName, `${FRONTEND_URL}/dashboard?workspace=${req.params.id}`)
+      );
       return res.json({ message: `${existingUser.username} added to ${spaceName}`, existed: true });
     }
     const inviteToken = crypto.randomBytes(16).toString("hex");
@@ -378,7 +418,10 @@ app.delete("/workspaces/:id/members/:userId", authenticateToken, async (req, res
   try {
     const allowed = await checkWorkspaceRole(req.user.id, req.params.id, ["admin"]);
     if (!allowed) return res.status(403).json({ error: "Only admins can remove members" });
-    await pool.query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [req.params.id, req.params.userId]);
+    await pool.query(
+      "DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
+      [req.params.id, req.params.userId]
+    );
     res.json({ message: "Member removed" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -393,7 +436,8 @@ app.get("/pages/workspace/:workspaceId", authenticateToken, async (req, res) => 
     const allowed = await checkWorkspaceRole(req.user.id, workspaceId, ["admin", "editor", "viewer"]);
     if (!allowed) return res.status(403).json({ error: "Access denied" });
     const result = await pool.query(
-      `SELECT p.*, u.username as creator_name FROM pages p LEFT JOIN users u ON p.created_by = u.id
+      `SELECT p.*, u.username as creator_name FROM pages p
+       LEFT JOIN users u ON p.created_by = u.id
        WHERE workspace_id = $1 ORDER BY p.created_at DESC`, [workspaceId]
     );
     res.json(result.rows);
@@ -403,7 +447,8 @@ app.get("/pages/workspace/:workspaceId", authenticateToken, async (req, res) => 
 app.get("/pages/:id", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT p.*, u.username as creator_name FROM pages p LEFT JOIN users u ON p.created_by = u.id WHERE p.id = $1`,
+      `SELECT p.*, u.username as creator_name FROM pages p
+       LEFT JOIN users u ON p.created_by = u.id WHERE p.id = $1`,
       [req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Page not found" });
@@ -420,7 +465,8 @@ app.post("/pages", authenticateToken, async (req, res) => {
     const allowed = await checkWorkspaceRole(req.user.id, workspace_id, ["admin", "editor"]);
     if (!allowed) return res.status(403).json({ error: "No permission to create pages here" });
     const result = await pool.query(
-      `INSERT INTO pages (title, content, workspace_id, parent_page_id, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      `INSERT INTO pages (title, content, workspace_id, parent_page_id, created_by)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [title, content, workspace_id, parent_page_id || null, req.user.id]
     );
     res.json(result.rows[0]);
@@ -459,7 +505,9 @@ app.delete("/pages/:id", authenticateToken, async (req, res) => {
 
 app.get("/attachments/page/:pageId", authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query(`SELECT * FROM attachments WHERE page_id = $1 ORDER BY uploaded_at DESC`, [req.params.pageId]);
+    const result = await pool.query(
+      `SELECT * FROM attachments WHERE page_id = $1 ORDER BY uploaded_at DESC`, [req.params.pageId]
+    );
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: "Failed to fetch attachments" }); }
 });
@@ -472,11 +520,28 @@ app.post("/attachments/upload", authenticateToken, upload.single("file"), async 
     const allowed = await checkWorkspaceRole(req.user.id, pageResult.rows[0].workspace_id, ["admin", "editor"]);
     if (!allowed) return res.status(403).json({ error: "No permission to upload here" });
     const result = await pool.query(
-      `INSERT INTO attachments (page_id, file_name, file_path, file_type, uploaded_by) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      `INSERT INTO attachments (page_id, file_name, file_path, file_type, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [page_id, req.file.originalname, req.file.filename, req.file.mimetype, req.user.id]
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: "File upload failed" }); }
+});
+
+app.delete("/attachments/:id", authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM attachments WHERE id = $1", [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Attachment not found" });
+    const attachment = result.rows[0];
+    const pageResult = await pool.query("SELECT workspace_id FROM pages WHERE id = $1", [attachment.page_id]);
+    if (pageResult.rows.length === 0) return res.status(404).json({ error: "Page not found" });
+    const allowed = await checkWorkspaceRole(req.user.id, pageResult.rows[0].workspace_id, ["admin", "editor"]);
+    if (!allowed) return res.status(403).json({ error: "No permission to delete this file" });
+    const filePath = path.join(__dirname, "uploads", attachment.file_path);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    await pool.query("DELETE FROM attachments WHERE id = $1", [req.params.id]);
+    res.json({ message: "Attachment deleted" });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // =============================
@@ -491,14 +556,16 @@ app.get("/teams", authenticateToken, async (req, res) => {
     if (isAdmin) {
       result = await pool.query(
         `SELECT t.*, COUNT(DISTINCT tm.user_id) as member_count, COUNT(DISTINCT tw.workspace_id) as workspace_count
-         FROM teams t LEFT JOIN team_members tm ON t.id = tm.team_id LEFT JOIN team_workspaces tw ON t.id = tw.team_id
+         FROM teams t LEFT JOIN team_members tm ON t.id = tm.team_id
+         LEFT JOIN team_workspaces tw ON t.id = tw.team_id
          GROUP BY t.id ORDER BY t.created_at DESC`
       );
     } else {
       result = await pool.query(
         `SELECT t.*, COUNT(DISTINCT tm2.user_id) as member_count, COUNT(DISTINCT tw.workspace_id) as workspace_count
          FROM teams t JOIN team_members tm ON t.id = tm.team_id AND tm.user_id = $1
-         LEFT JOIN team_members tm2 ON t.id = tm2.team_id LEFT JOIN team_workspaces tw ON t.id = tw.team_id
+         LEFT JOIN team_members tm2 ON t.id = tm2.team_id
+         LEFT JOIN team_workspaces tw ON t.id = tw.team_id
          GROUP BY t.id ORDER BY t.created_at DESC`, [req.user.id]
       );
     }
@@ -510,9 +577,15 @@ app.post("/teams", authenticateToken, async (req, res) => {
   try {
     const { name, description } = req.body;
     if (!name) return res.status(400).json({ error: "Team name required" });
-    const result = await pool.query(`INSERT INTO teams (name, description, created_by) VALUES ($1, $2, $3) RETURNING *`, [name, description, req.user.id]);
+    const result = await pool.query(
+      `INSERT INTO teams (name, description, created_by) VALUES ($1, $2, $3) RETURNING *`,
+      [name, description, req.user.id]
+    );
     const team = result.rows[0];
-    await pool.query(`INSERT INTO team_members (team_id, user_id, role, added_by) VALUES ($1, $2, 'admin', $2)`, [team.id, req.user.id]);
+    await pool.query(
+      `INSERT INTO team_members (team_id, user_id, role, added_by) VALUES ($1, $2, 'admin', $2)`,
+      [team.id, req.user.id]
+    );
     res.status(201).json(team);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -521,7 +594,8 @@ app.get("/teams/:id/members", authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT u.id, u.username, u.email, tm.role, tm.created_at FROM team_members tm
-       JOIN users u ON tm.user_id = u.id WHERE tm.team_id = $1 ORDER BY tm.created_at ASC`, [req.params.id]
+       JOIN users u ON tm.user_id = u.id WHERE tm.team_id = $1 ORDER BY tm.created_at ASC`,
+      [req.params.id]
     );
     res.json(result.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -541,7 +615,10 @@ app.post("/teams/:id/members", authenticateToken, async (req, res) => {
 
 app.delete("/teams/:id/members/:userId", authenticateToken, async (req, res) => {
   try {
-    await pool.query("DELETE FROM team_members WHERE team_id = $1 AND user_id = $2", [req.params.id, req.params.userId]);
+    await pool.query(
+      "DELETE FROM team_members WHERE team_id = $1 AND user_id = $2",
+      [req.params.id, req.params.userId]
+    );
     res.json({ message: "Member removed" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -570,7 +647,10 @@ app.get("/teams/:id/workspaces", authenticateToken, async (req, res) => {
 
 app.delete("/teams/:id/workspaces/:workspaceId", authenticateToken, async (req, res) => {
   try {
-    await pool.query("DELETE FROM team_workspaces WHERE team_id = $1 AND workspace_id = $2", [req.params.id, req.params.workspaceId]);
+    await pool.query(
+      "DELETE FROM team_workspaces WHERE team_id = $1 AND workspace_id = $2",
+      [req.params.id, req.params.workspaceId]
+    );
     res.json({ message: "Workspace access removed" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -612,6 +692,22 @@ app.get("/admin/users", authenticateToken, adminOnly, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post("/admin/users/create", authenticateToken, adminOnly, async (req, res) => {
+  try {
+    const { username, email, password, role = "user" } = req.body;
+    if (!username || !email || !password) return res.status(400).json({ error: "Name, email and password required" });
+    const existing = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+    if (existing.rows.length > 0) return res.status(409).json({ error: "Email already exists" });
+    const password_hash = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      `INSERT INTO users (username, email, password_hash, role, verified, force_password_change)
+       VALUES ($1, $2, $3, $4, TRUE, TRUE) RETURNING id, username, email, role`,
+      [username, email, password_hash, role]
+    );
+    res.status(201).json({ message: "User created successfully", user: result.rows[0] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.put("/admin/users/:id", authenticateToken, adminOnly, async (req, res) => {
   try {
     const { role, verified } = req.body;
@@ -621,7 +717,8 @@ app.put("/admin/users/:id", authenticateToken, adminOnly, async (req, res) => {
     if (updates.length === 0) return res.status(400).json({ error: "Nothing to update" });
     values.push(req.params.id);
     const result = await pool.query(
-      `UPDATE users SET ${updates.join(", ")} WHERE id = $${idx} RETURNING id, username, email, role, verified`, values
+      `UPDATE users SET ${updates.join(", ")} WHERE id = $${idx} RETURNING id, username, email, role, verified`,
+      values
     );
     res.json(result.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -630,7 +727,14 @@ app.put("/admin/users/:id", authenticateToken, adminOnly, async (req, res) => {
 app.delete("/admin/users/:id", authenticateToken, adminOnly, async (req, res) => {
   try {
     if (parseInt(req.params.id) === req.user.id) return res.status(400).json({ error: "Cannot delete yourself" });
-    await pool.query("DELETE FROM users WHERE id = $1", [req.params.id]);
+    const uid = req.params.id;
+    await pool.query("UPDATE attachments SET uploaded_by = NULL WHERE uploaded_by = $1", [uid]);
+    await pool.query("UPDATE pages SET created_by = NULL WHERE created_by = $1", [uid]);
+    await pool.query("UPDATE workspaces SET created_by = NULL WHERE created_by = $1", [uid]);
+    await pool.query("DELETE FROM workspace_members WHERE user_id = $1", [uid]);
+    await pool.query("DELETE FROM team_members WHERE user_id = $1", [uid]);
+    await pool.query("DELETE FROM pending_invites WHERE invited_by = $1", [uid]);
+    await pool.query("DELETE FROM users WHERE id = $1", [uid]);
     res.json({ message: "User deleted" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
