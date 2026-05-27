@@ -1,13 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState, Suspense } from "react";
+import dynamic from "next/dynamic";
 import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Bell, ChevronDown, FileText, LogOut, Pencil,
   Plus, Search, Settings, Share2, X, Users,
-  Moon, Sun, UserPlus, Check,
+  Moon, Sun, UserPlus, Check, Trash2, Star,
+  Clock, Shield,
 } from "lucide-react";
+
+const RichTextEditor = dynamic(
+  () => import("../../components/RichTextEditor"),
+  { ssr: false, loading: () => <div style={{ height: "200px", display: "flex", alignItems: "center", justifyContent: "center", color: "#8892a4", fontSize: "13px" }}>Loading editor…</div> }
+);
 
 const LIGHT = {
   bg:"bg-[#f4f6fb]", sidebar:"bg-white", card:"bg-white", border:"border-[#e8edf3]",
@@ -35,50 +42,48 @@ const IMAGE_WALLPAPERS = [
 ];
 
 const GRADIENT_WALLPAPERS = [
-  { id:"mesh-violet",  name:"Violet Mesh",  style:{ background:"linear-gradient(135deg,#4f46e5 0%,#7c3aed 40%,#a855f7 100%)" } },
-  { id:"ocean-blue",   name:"Ocean Blue",   style:{ background:"linear-gradient(135deg,#1e40af 0%,#0ea5e9 60%,#38bdf8 100%)" } },
-  { id:"midnight",     name:"Midnight",     style:{ background:"linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#334155 100%)" } },
-  { id:"aurora",       name:"Aurora",       style:{ background:"linear-gradient(135deg,#0f766e 0%,#0891b2 50%,#6366f1 100%)" } },
-  { id:"sunset",       name:"Sunset",       style:{ background:"linear-gradient(135deg,#dc2626 0%,#ea580c 40%,#f59e0b 100%)" } },
-  { id:"rose-gold",    name:"Rose Gold",    style:{ background:"linear-gradient(135deg,#9f1239 0%,#e11d48 50%,#fb7185 100%)" } },
-  { id:"forest",       name:"Forest",       style:{ background:"linear-gradient(135deg,#14532d 0%,#16a34a 50%,#4ade80 100%)" } },
-  { id:"deep-space",   name:"Deep Space",   style:{ background:"linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#4338ca 100%)" } },
-  { id:"teal-cyan",    name:"Teal",         style:{ background:"linear-gradient(135deg,#134e4a 0%,#0d9488 50%,#2dd4bf 100%)" } },
-  { id:"lavender",     name:"Lavender",     style:{ background:"linear-gradient(135deg,#5b21b6 0%,#8b5cf6 50%,#c4b5fd 100%)" } },
-  { id:"coral",        name:"Coral",        style:{ background:"linear-gradient(135deg,#7f1d1d 0%,#ef4444 50%,#fb923c 100%)" } },
-  { id:"peach",        name:"Peach",        style:{ background:"linear-gradient(135deg,#7c3aed 0%,#db2777 50%,#fb923c 100%)" } },
+  { id:"mesh-violet", name:"Violet Mesh", style:{ background:"linear-gradient(135deg,#4f46e5 0%,#7c3aed 40%,#a855f7 100%)" } },
+  { id:"ocean-blue",  name:"Ocean Blue",  style:{ background:"linear-gradient(135deg,#1e40af 0%,#0ea5e9 60%,#38bdf8 100%)" } },
+  { id:"midnight",    name:"Midnight",    style:{ background:"linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#334155 100%)" } },
+  { id:"aurora",      name:"Aurora",      style:{ background:"linear-gradient(135deg,#0f766e 0%,#0891b2 50%,#6366f1 100%)" } },
+  { id:"sunset",      name:"Sunset",      style:{ background:"linear-gradient(135deg,#dc2626 0%,#ea580c 40%,#f59e0b 100%)" } },
+  { id:"rose-gold",   name:"Rose Gold",   style:{ background:"linear-gradient(135deg,#9f1239 0%,#e11d48 50%,#fb7185 100%)" } },
+  { id:"forest",      name:"Forest",      style:{ background:"linear-gradient(135deg,#14532d 0%,#16a34a 50%,#4ade80 100%)" } },
+  { id:"deep-space",  name:"Deep Space",  style:{ background:"linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#4338ca 100%)" } },
+  { id:"teal-cyan",   name:"Teal",        style:{ background:"linear-gradient(135deg,#134e4a 0%,#0d9488 50%,#2dd4bf 100%)" } },
+  { id:"lavender",    name:"Lavender",    style:{ background:"linear-gradient(135deg,#5b21b6 0%,#8b5cf6 50%,#c4b5fd 100%)" } },
+  { id:"coral",       name:"Coral",       style:{ background:"linear-gradient(135deg,#7f1d1d 0%,#ef4444 50%,#fb923c 100%)" } },
+  { id:"peach",       name:"Peach",       style:{ background:"linear-gradient(135deg,#7c3aed 0%,#db2777 50%,#fb923c 100%)" } },
 ];
 
 const ALL_WALLPAPERS = [...IMAGE_WALLPAPERS, ...GRADIENT_WALLPAPERS];
-
-const getWallpaperStyle = (id: string) =>
-  ALL_WALLPAPERS.find(w => w.id === id)?.style || GRADIENT_WALLPAPERS[0].style;
+const getWallpaperStyle = (id: string) => ALL_WALLPAPERS.find(w => w.id === id)?.style || GRADIENT_WALLPAPERS[0].style;
 
 const SPACE_ICONS = [
-  { emoji:"💻", label:"IT",           bg:"linear-gradient(135deg,#0284c7,#0ea5e9)" },
-  { emoji:"🔄", label:"DevOps",       bg:"linear-gradient(135deg,#ea580c,#f59e0b)" },
-  { emoji:"🛡️", label:"Compliance",  bg:"linear-gradient(135deg,#1d4ed8,#3b82f6)" },
-  { emoji:"🎓", label:"L&D",          bg:"linear-gradient(135deg,#7c3aed,#a855f7)" },
-  { emoji:"👥", label:"HR",           bg:"linear-gradient(135deg,#db2777,#f472b6)" },
-  { emoji:"💹", label:"Finance",      bg:"linear-gradient(135deg,#15803d,#4ade80)" },
-  { emoji:"📋", label:"RMS",          bg:"linear-gradient(135deg,#b45309,#f59e0b)" },
-  { emoji:"👨‍💻", label:"Dev Team",   bg:"linear-gradient(135deg,#4f46e5,#818cf8)" },
-  { emoji:"📣", label:"Marketing",    bg:"linear-gradient(135deg,#c2410c,#fb923c)" },
-  { emoji:"🔮", label:"Product",      bg:"linear-gradient(135deg,#6d28d9,#c084fc)" },
-  { emoji:"🎨", label:"Design",       bg:"linear-gradient(135deg,#be185d,#f9a8d4)" },
-  { emoji:"⚙️", label:"Operations",  bg:"linear-gradient(135deg,#374151,#9ca3af)" },
-  { emoji:"🔐", label:"Security",     bg:"linear-gradient(135deg,#1e3a5f,#2563eb)" },
-  { emoji:"📊", label:"Analytics",    bg:"linear-gradient(135deg,#0e7490,#22d3ee)" },
-  { emoji:"🏗️", label:"Infra",       bg:"linear-gradient(135deg,#78350f,#d97706)" },
-  { emoji:"☁️", label:"Cloud",        bg:"linear-gradient(135deg,#1e40af,#60a5fa)" },
-  { emoji:"📁", label:"General",      bg:"linear-gradient(135deg,#4f46e5,#7c3aed)" },
-  { emoji:"🚀", label:"Launch",       bg:"linear-gradient(135deg,#0f172a,#4338ca)" },
-  { emoji:"🧪", label:"R&D",          bg:"linear-gradient(135deg,#065f46,#10b981)" },
-  { emoji:"🌐", label:"Global",       bg:"linear-gradient(135deg,#1d4ed8,#0891b2)" },
-  { emoji:"📱", label:"Mobile",       bg:"linear-gradient(135deg,#7c3aed,#db2777)" },
-  { emoji:"🔬", label:"Science",      bg:"linear-gradient(135deg,#0f766e,#14b8a6)" },
-  { emoji:"💡", label:"Innovation",   bg:"linear-gradient(135deg,#b45309,#fbbf24)" },
-  { emoji:"🎯", label:"Strategy",     bg:"linear-gradient(135deg,#991b1b,#ef4444)" },
+  { emoji:"💻", label:"IT",          bg:"linear-gradient(135deg,#0284c7,#0ea5e9)" },
+  { emoji:"🔄", label:"DevOps",      bg:"linear-gradient(135deg,#ea580c,#f59e0b)" },
+  { emoji:"🛡️",label:"Compliance",  bg:"linear-gradient(135deg,#1d4ed8,#3b82f6)" },
+  { emoji:"🎓", label:"L&D",         bg:"linear-gradient(135deg,#7c3aed,#a855f7)" },
+  { emoji:"👥", label:"HR",          bg:"linear-gradient(135deg,#db2777,#f472b6)" },
+  { emoji:"💹", label:"Finance",     bg:"linear-gradient(135deg,#15803d,#4ade80)" },
+  { emoji:"📋", label:"RMS",         bg:"linear-gradient(135deg,#b45309,#f59e0b)" },
+  { emoji:"👨‍💻",label:"Dev Team",  bg:"linear-gradient(135deg,#4f46e5,#818cf8)" },
+  { emoji:"📣", label:"Marketing",   bg:"linear-gradient(135deg,#c2410c,#fb923c)" },
+  { emoji:"🔮", label:"Product",     bg:"linear-gradient(135deg,#6d28d9,#c084fc)" },
+  { emoji:"🎨", label:"Design",      bg:"linear-gradient(135deg,#be185d,#f9a8d4)" },
+  { emoji:"⚙️",label:"Operations", bg:"linear-gradient(135deg,#374151,#9ca3af)" },
+  { emoji:"🔐", label:"Security",    bg:"linear-gradient(135deg,#1e3a5f,#2563eb)" },
+  { emoji:"📊", label:"Analytics",   bg:"linear-gradient(135deg,#0e7490,#22d3ee)" },
+  { emoji:"🏗️",label:"Infra",       bg:"linear-gradient(135deg,#78350f,#d97706)" },
+  { emoji:"☁️",label:"Cloud",        bg:"linear-gradient(135deg,#1e40af,#60a5fa)" },
+  { emoji:"📁", label:"General",     bg:"linear-gradient(135deg,#4f46e5,#7c3aed)" },
+  { emoji:"🚀", label:"Launch",      bg:"linear-gradient(135deg,#0f172a,#4338ca)" },
+  { emoji:"🧪", label:"R&D",         bg:"linear-gradient(135deg,#065f46,#10b981)" },
+  { emoji:"🌐", label:"Global",      bg:"linear-gradient(135deg,#1d4ed8,#0891b2)" },
+  { emoji:"📱", label:"Mobile",      bg:"linear-gradient(135deg,#7c3aed,#db2777)" },
+  { emoji:"🔬", label:"Science",     bg:"linear-gradient(135deg,#0f766e,#14b8a6)" },
+  { emoji:"💡", label:"Innovation",  bg:"linear-gradient(135deg,#b45309,#fbbf24)" },
+  { emoji:"🎯", label:"Strategy",    bg:"linear-gradient(135deg,#991b1b,#ef4444)" },
 ];
 
 interface Workspace { id: number; name: string; description: string; }
@@ -86,8 +91,7 @@ interface Page { id: number; title: string; content: string; workspace_id: numbe
 interface WorkspaceRole { workspace_id: number; role: string; }
 interface SpacePref { wallpaper: string; icon: string | null; iconBg: string | null; }
 
-const getInitials = (name: string) =>
-  name.trim().split(" ").slice(0, 2).map(w => w[0]?.toUpperCase()).join("");
+const getInitials = (name: string) => name.trim().split(" ").slice(0, 2).map(w => w[0]?.toUpperCase()).join("");
 
 function DashboardPage() {
   const router = useRouter();
@@ -102,23 +106,34 @@ function DashboardPage() {
   const [expandedWorkspaceId, setExpandedWorkspaceId] = useState<number | null>(null);
   const [workspacePages, setWorkspacePages] = useState<Record<number, Page[]>>({});
   const [spacePrefs, setSpacePrefs] = useState<Record<number, SpacePref>>({});
+  const [userRole, setUserRole] = useState<string>("user");
 
+  // Recent & Starred
+  const [recentIds, setRecentIds] = useState<number[]>([]);
+  const [starredIds, setStarredIds] = useState<number[]>([]);
+  const [showRecent, setShowRecent] = useState(false);
+  const [showStarred, setShowStarred] = useState(false);
+
+  // Modals
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [showCreateSpaceModal, setShowCreateSpaceModal] = useState(false);
   const [showCreatePageModal, setShowCreatePageModal] = useState(false);
   const [showEditSpaceModal, setShowEditSpaceModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
+  // Search
   const [searchTerm, setSearchTerm] = useState("");
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [spaceSearch, setSpaceSearch] = useState("");
   const [shareCopied, setShareCopied] = useState(false);
 
+  // Invite
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("viewer");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
+  // Forms
   const [spaceName, setSpaceName] = useState("");
   const [spaceDescription, setSpaceDescription] = useState("");
   const [editSpaceName, setEditSpaceName] = useState("");
@@ -130,15 +145,13 @@ function DashboardPage() {
   const [creatingSpace, setCreatingSpace] = useState(false);
   const [creatingPage, setCreatingPage] = useState(false);
   const [savingSpace, setSavingSpace] = useState(false);
+  const [deletingSpace, setDeletingSpace] = useState(false);
 
   const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` });
 
   const getSpacePref = (id: number): SpacePref => {
     if (spacePrefs[id]) return spacePrefs[id];
-    try {
-      const s = localStorage.getItem(`space_pref_${id}`);
-      if (s) return JSON.parse(s);
-    } catch {}
+    try { const s = localStorage.getItem(`space_pref_${id}`); if (s) return JSON.parse(s); } catch {}
     return { wallpaper: GRADIENT_WALLPAPERS[0].id, icon: null, iconBg: null };
   };
 
@@ -147,9 +160,37 @@ function DashboardPage() {
     setSpacePrefs(p => ({ ...p, [id]: pref }));
   };
 
+  const trackRecent = (wsId: number) => {
+    const recents: number[] = JSON.parse(localStorage.getItem("recent_spaces") || "[]");
+    const updated = [wsId, ...recents.filter(id => id !== wsId)].slice(0, 5);
+    localStorage.setItem("recent_spaces", JSON.stringify(updated));
+    setRecentIds(updated);
+  };
+
+  const toggleStar = (wsId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const starred: number[] = JSON.parse(localStorage.getItem("starred_spaces") || "[]");
+    const isStarred = starred.includes(wsId);
+    const updated = isStarred ? starred.filter(id => id !== wsId) : [...starred, wsId];
+    localStorage.setItem("starred_spaces", JSON.stringify(updated));
+    setStarredIds(updated);
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem("theme");
     if (saved === "dark") setIsDark(true);
+    const recents: number[] = JSON.parse(localStorage.getItem("recent_spaces") || "[]");
+    const starred: number[] = JSON.parse(localStorage.getItem("starred_spaces") || "[]");
+    setRecentIds(recents);
+    setStarredIds(starred);
+    // Sync cookie for middleware
+    const token = localStorage.getItem("token");
+    if (token) {
+      document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+    } else {
+      router.push("/login");
+      return;
+    }
     fetchWorkspaces();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -181,9 +222,22 @@ function DashboardPage() {
       const res = await axios.get("http://192.168.11.69:5000/workspaces", { headers: authHeaders() });
       setWorkspaces(res.data);
       setWorkspaceRoles(res.data.map((w: Workspace) => ({ workspace_id: w.id, role: "admin" })));
+      // Get user role
+      try {
+        const token = localStorage.getItem("token");
+        if (token) {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          const userRes = await axios.get(`http://192.168.11.69:5000/users/search?q=_self_`, { headers: authHeaders() });
+          // Simple role check via admin endpoint
+          try {
+            await axios.get("http://192.168.11.69:5000/admin/stats", { headers: authHeaders() });
+            setUserRole("admin");
+          } catch { setUserRole("user"); }
+        }
+      } catch {}
       const qWs = searchParams.get("workspace");
       const target = (qWs ? res.data.find((w: Workspace) => String(w.id) === qWs) : null) || (res.data[0] || null);
-      if (target) { setSelectedWorkspace(target); setExpandedWorkspaceId(target.id); fetchPages(target.id); }
+      if (target) { setSelectedWorkspace(target); setExpandedWorkspaceId(target.id); fetchPages(target.id); trackRecent(target.id); }
     } catch (err) { console.error(err); }
   };
 
@@ -198,12 +252,13 @@ function DashboardPage() {
 
   const selectWorkspace = async (ws: Workspace) => {
     setSelectedWorkspace(ws); setExpandedWorkspaceId(ws.id); setSpaceSearch("");
+    trackRecent(ws.id);
     await fetchPages(ws.id);
   };
 
   const toggleExpand = async (ws: Workspace) => {
     if (expandedWorkspaceId === ws.id) { setExpandedWorkspaceId(null); return; }
-    setExpandedWorkspaceId(ws.id); setSelectedWorkspace(ws);
+    setExpandedWorkspaceId(ws.id); setSelectedWorkspace(ws); trackRecent(ws.id);
     await fetchPages(ws.id);
   };
 
@@ -211,10 +266,7 @@ function DashboardPage() {
     if (!spaceName.trim()) return;
     try {
       setCreatingSpace(true);
-      await axios.post("http://192.168.11.69:5000/workspaces",
-        { name: spaceName.trim(), description: spaceDescription.trim() },
-        { headers: authHeaders() }
-      );
+      await axios.post("http://192.168.11.69:5000/workspaces", { name: spaceName.trim(), description: spaceDescription.trim() }, { headers: authHeaders() });
       setShowCreateSpaceModal(false); setSpaceName(""); setSpaceDescription("");
       fetchWorkspaces();
     } catch (err) { console.error(err); } finally { setCreatingSpace(false); }
@@ -225,7 +277,7 @@ function DashboardPage() {
     try {
       setCreatingPage(true);
       await axios.post("http://192.168.11.69:5000/pages",
-        { title: pageTitle.trim(), content: pageContent.trim(), workspace_id: selectedWorkspace.id, parent_page_id: null },
+        { title: pageTitle.trim(), content: pageContent, workspace_id: selectedWorkspace.id, parent_page_id: null },
         { headers: authHeaders() }
       );
       setShowCreatePageModal(false); setPageTitle(""); setPageContent("");
@@ -241,19 +293,27 @@ function DashboardPage() {
     try {
       setSavingSpace(true);
       await axios.put(`http://192.168.11.69:5000/workspaces/${selectedWorkspace.id}`,
-        { name: nextName, description: nextDesc },
-        { headers: authHeaders() }
+        { name: nextName, description: nextDesc }, { headers: authHeaders() }
       );
-      saveSpacePref(selectedWorkspace.id, {
-        wallpaper: editWallpaper,
-        icon: iconData?.emoji || null,
-        iconBg: iconData?.bg || null,
-      });
+      saveSpacePref(selectedWorkspace.id, { wallpaper: editWallpaper, icon: iconData?.emoji || null, iconBg: iconData?.bg || null });
     } catch (err) { console.error(err); } finally {
       setWorkspaces(p => p.map(w => w.id === selectedWorkspace.id ? { ...w, name: nextName, description: nextDesc } : w));
       setSelectedWorkspace(p => p ? { ...p, name: nextName, description: nextDesc } : p);
       setShowEditSpaceModal(false); setSavingSpace(false);
     }
+  };
+
+  const deleteSpace = async () => {
+    if (!selectedWorkspace) return;
+    if (!window.confirm(`Delete "${selectedWorkspace.name}"? This will also delete all its pages. This cannot be undone.`)) return;
+    try {
+      setDeletingSpace(true);
+      await axios.delete(`http://192.168.11.69:5000/workspaces/${selectedWorkspace.id}`, { headers: authHeaders() });
+      setWorkspaces(p => p.filter(w => w.id !== selectedWorkspace.id));
+      setSelectedWorkspace(null); setPages([]); setShowEditSpaceModal(false);
+    } catch (err: any) {
+      alert(err?.response?.data?.error || "Failed to delete space");
+    } finally { setDeletingSpace(false); }
   };
 
   const shareWorkspace = async () => {
@@ -266,23 +326,22 @@ function DashboardPage() {
   const sendInvite = async () => {
     if (!inviteEmail.trim() || !selectedWorkspace) return;
     try {
-      setInviteLoading(true);
-      setInviteResult(null);
-      const res = await axios.post(
-        `http://192.168.11.69:5000/workspaces/${selectedWorkspace.id}/invite`,
-        { email: inviteEmail.trim(), role: inviteRole },
-        { headers: authHeaders() }
+      setInviteLoading(true); setInviteResult(null);
+      const res = await axios.post(`http://192.168.11.69:5000/workspaces/${selectedWorkspace.id}/invite`,
+        { email: inviteEmail.trim(), role: inviteRole }, { headers: authHeaders() }
       );
       setInviteResult({ type: "success", message: res.data.message });
       setInviteEmail("");
     } catch (err: any) {
       setInviteResult({ type: "error", message: err?.response?.data?.error || "Invite failed" });
-    } finally {
-      setInviteLoading(false);
-    }
+    } finally { setInviteLoading(false); }
   };
 
-  const logout = () => { localStorage.removeItem("token"); router.push("/login"); };
+  const logout = () => {
+    localStorage.removeItem("token");
+    document.cookie = "auth_token=; path=/; max-age=0; SameSite=Lax";
+    router.push("/login");
+  };
 
   const allPages = useMemo(() => Object.values(workspacePages).flat(), [workspacePages]);
 
@@ -301,6 +360,9 @@ function DashboardPage() {
 
   const currentPref = selectedWorkspace ? getSpacePref(selectedWorkspace.id) : null;
   const bannerStyle = currentPref ? getWallpaperStyle(currentPref.wallpaper) : GRADIENT_WALLPAPERS[0].style;
+
+  const recentWorkspaces = recentIds.map(id => workspaces.find(w => w.id === id)).filter(Boolean) as Workspace[];
+  const starredWorkspaces = starredIds.map(id => workspaces.find(w => w.id === id)).filter(Boolean) as Workspace[];
 
   return (
     <div className={`h-screen flex overflow-hidden ${T.bg} transition-colors duration-200`}>
@@ -331,12 +393,68 @@ function DashboardPage() {
           )}
         </div>
 
-        <div className="px-3 pb-1">
-          {["Recent", "Starred"].map(label => (
-            <button key={label} className={`w-full text-left px-3 py-2 rounded-lg text-[12.5px] ${T.muted} ${T.hover} transition`}>{label}</button>
-          ))}
+        {/* Nav links */}
+        <div className="px-3 pb-1 space-y-0.5">
+          {/* Recent */}
+          <div>
+            <button onClick={() => setShowRecent(!showRecent)}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[12.5px] ${T.muted} ${T.hover} transition`}>
+              <span className="flex items-center gap-2"><Clock size={13}/> Recent</span>
+              <ChevronDown size={11} className={`transition-transform ${showRecent ? "rotate-180" : ""}`}/>
+            </button>
+            {showRecent && recentWorkspaces.length > 0 && (
+              <div className={`ml-3 pl-3 border-l ${T.border} space-y-0.5`}>
+                {recentWorkspaces.map(ws => (
+                  <button key={ws.id} onClick={() => selectWorkspace(ws)}
+                    className={`w-full text-left px-2 py-1.5 rounded-lg text-[11.5px] ${T.muted} ${T.hover} transition truncate`}>
+                    {ws.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            {showRecent && recentWorkspaces.length === 0 && (
+              <p className={`text-[11px] ${T.hint} px-6 py-1`}>No recent spaces</p>
+            )}
+          </div>
+
+          {/* Starred */}
+          <div>
+            <button onClick={() => setShowStarred(!showStarred)}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[12.5px] ${T.muted} ${T.hover} transition`}>
+              <span className="flex items-center gap-2"><Star size={13}/> Starred</span>
+              <ChevronDown size={11} className={`transition-transform ${showStarred ? "rotate-180" : ""}`}/>
+            </button>
+            {showStarred && starredWorkspaces.length > 0 && (
+              <div className={`ml-3 pl-3 border-l ${T.border} space-y-0.5`}>
+                {starredWorkspaces.map(ws => (
+                  <button key={ws.id} onClick={() => selectWorkspace(ws)}
+                    className={`w-full text-left px-2 py-1.5 rounded-lg text-[11.5px] ${T.muted} ${T.hover} transition truncate`}>
+                    {ws.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            {showStarred && starredWorkspaces.length === 0 && (
+              <p className={`text-[11px] ${T.hint} px-6 py-1`}>No starred spaces</p>
+            )}
+          </div>
+
+          {/* Teams */}
+          <button onClick={() => router.push("/teams")}
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[12.5px] ${T.muted} ${T.hover} transition`}>
+            <Users size={13}/> Teams
+          </button>
+
+          {/* Admin — only for admins */}
+          {userRole === "admin" && (
+            <button onClick={() => router.push("/admin")}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[12.5px] ${T.muted} ${T.hover} transition`}>
+              <Shield size={13}/> Admin Panel
+            </button>
+          )}
         </div>
 
+        {/* Spaces list */}
         <div className="flex-1 overflow-y-auto px-3 pb-4">
           <div className={`px-2 mb-2 mt-3 text-[10.5px] font-bold tracking-[2px] ${T.hint} uppercase`}>Spaces</div>
           <div className="space-y-0.5">
@@ -344,34 +462,29 @@ function DashboardPage() {
               const pref = getSpacePref(ws.id);
               const isSelected = selectedWorkspace?.id === ws.id;
               const isExpanded = expandedWorkspaceId === ws.id;
-              const initials = getInitials(ws.name);
+              const isStarred = starredIds.includes(ws.id);
               return (
                 <div key={ws.id}>
-                  <button onClick={() => toggleExpand(ws)}
-                    className={`w-full rounded-xl text-left px-2.5 py-2 transition-all flex items-center gap-2 ${
-                      isSelected
-                        ? (isDark ? "bg-[#1e2235] border border-[#3d4266]" : "bg-violet-50 border border-violet-200 shadow-sm")
-                        : `border border-transparent ${T.hover}`
-                    }`}>
-                    {pref.icon ? (
-                      <div className="w-6 h-6 rounded-lg flex items-center justify-center text-sm shrink-0"
-                        style={{ background: pref.iconBg || "#4f46e5" }}>
-                        {pref.icon}
-                      </div>
-                    ) : (
-                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                        isSelected ? (isDark ? "bg-indigo-700 text-white" : "bg-violet-600 text-white") : (isDark ? "bg-[#2d3348] text-[#8892a4]" : "bg-[#e8edf3] text-[#64748b]")
-                      }`}>
-                        {initials}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <span className={`text-[12.5px] font-medium truncate block ${isSelected ? (isDark ? "text-indigo-300" : "text-violet-700") : T.text}`}>
-                        {ws.name}
-                      </span>
-                    </div>
-                    <ChevronDown size={12} className={`${T.hint} transition-transform shrink-0 ${isExpanded ? "rotate-180" : ""}`} />
-                  </button>
+                  <div className={`w-full rounded-xl transition-all flex items-center gap-1.5 pr-1.5 ${
+                    isSelected ? (isDark ? "bg-[#1e2235] border border-[#3d4266]" : "bg-violet-50 border border-violet-200 shadow-sm") : `border border-transparent ${T.hover}`
+                  }`}>
+                    <button onClick={() => toggleExpand(ws)} className="flex-1 flex items-center gap-2 px-2.5 py-2 text-left min-w-0">
+                      {pref.icon ? (
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center text-sm shrink-0" style={{ background: pref.iconBg || "#4f46e5" }}>{pref.icon}</div>
+                      ) : (
+                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${isSelected ? (isDark ? "bg-indigo-700 text-white" : "bg-violet-600 text-white") : (isDark ? "bg-[#2d3348] text-[#8892a4]" : "bg-[#e8edf3] text-[#64748b]")}`}>
+                          {getInitials(ws.name)}
+                        </div>
+                      )}
+                      <span className={`text-[12.5px] font-medium truncate ${isSelected ? (isDark ? "text-indigo-300" : "text-violet-700") : T.text}`}>{ws.name}</span>
+                      <ChevronDown size={12} className={`${T.hint} transition-transform shrink-0 ${isExpanded ? "rotate-180" : ""}`} />
+                    </button>
+                    {/* Star button */}
+                    <button onClick={(e) => toggleStar(ws.id, e)}
+                      className={`w-5 h-5 flex items-center justify-center rounded transition shrink-0 ${isStarred ? "text-yellow-400" : T.hint}`}>
+                      <Star size={11} fill={isStarred ? "currentColor" : "none"} />
+                    </button>
+                  </div>
                   {isExpanded && (
                     <div className={`ml-3 mt-0.5 border-l ${T.border} pl-3 space-y-0.5 mb-1`}>
                       {(workspacePages[ws.id] || []).map(p => (
@@ -447,7 +560,7 @@ function DashboardPage() {
                           <FileText size={14} className="text-violet-400 shrink-0" />
                           <div className="min-w-0">
                             <div className={`text-[13px] font-medium ${T.text}`}>{p.title}</div>
-                            <div className={`text-[11px] ${T.hint} truncate`}>{p.content}</div>
+                            <div className={`text-[11px] ${T.hint} truncate`}>{p.content?.replace(/<[^>]*>/g, "")}</div>
                           </div>
                         </button>
                       ))}
@@ -470,7 +583,8 @@ function DashboardPage() {
             <button className={`w-8 h-8 rounded-xl border ${T.border} ${T.modal} flex items-center justify-center ${T.hover} transition`}>
               <Bell size={14} className={T.muted} />
             </button>
-            <button className={`w-8 h-8 rounded-xl border ${T.border} ${T.modal} flex items-center justify-center ${T.hover} transition`}>
+            <button onClick={() => router.push(userRole === "admin" ? "/admin" : "/teams")}
+              className={`w-8 h-8 rounded-xl border ${T.border} ${T.modal} flex items-center justify-center ${T.hover} transition`}>
               <Settings size={14} className={T.muted} />
             </button>
             <button onClick={logout}
@@ -484,12 +598,9 @@ function DashboardPage() {
         <div className="flex-1 overflow-y-auto">
           {selectedWorkspace && currentPref ? (
             <div>
-              {/* Banner */}
               <div className="w-full h-[165px] relative" style={bannerStyle}>
                 <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom,transparent 55%,rgba(0,0,0,0.28))" }} />
               </div>
-
-              {/* Space identity */}
               <div className="relative z-10 flex flex-col items-center -mt-[38px] pb-5 px-6">
                 {currentPref.icon ? (
                   <div className="w-[72px] h-[72px] rounded-2xl flex items-center justify-center text-3xl shadow-xl border-[3px]"
@@ -502,7 +613,6 @@ function DashboardPage() {
                     <span className="text-white text-[22px] font-bold">{getInitials(selectedWorkspace.name)}</span>
                   </div>
                 )}
-
                 <div className="flex items-center gap-2.5 mt-3">
                   <h1 className={`text-[23px] font-bold tracking-tight ${T.text}`}>{selectedWorkspace.name}</h1>
                   <button onClick={() => { setShowInviteModal(true); setInviteResult(null); setInviteEmail(""); }}
@@ -510,11 +620,9 @@ function DashboardPage() {
                     <UserPlus size={11} /> Invite
                   </button>
                 </div>
-
                 <p className={`mt-1.5 text-[13px] ${T.muted} text-center max-w-lg leading-relaxed`}>
                   {selectedWorkspace.description || "No description — click Edit Space to add one."}
                 </p>
-
                 <div className="flex items-center gap-2 mt-3">
                   {canEdit && (
                     <button onClick={() => setShowEditSpaceModal(true)}
@@ -528,10 +636,7 @@ function DashboardPage() {
                   </button>
                 </div>
               </div>
-
               <div className={`border-t ${T.border} mx-6`} />
-
-              {/* Pages */}
               <div className="px-6 py-5 max-w-[860px] mx-auto w-full">
                 <div className="flex items-center justify-between mb-4 gap-3">
                   <h2 className={`text-[15px] font-semibold ${T.text} shrink-0`}>
@@ -544,7 +649,6 @@ function DashboardPage() {
                       className={`w-full h-[33px] rounded-xl border pl-8 pr-3 text-[12.5px] focus:outline-none focus:border-violet-400 ${T.input} transition`} />
                   </div>
                 </div>
-
                 <div className="space-y-2.5">
                   {spaceFilteredPages.map(p => (
                     <button key={p.id} onClick={() => router.push(`/page/${p.id}`)}
@@ -582,7 +686,6 @@ function DashboardPage() {
               </div>
             </div>
           ) : (
-            /* Welcome screen */
             <div className="h-full flex flex-col">
               <div className="w-full h-[210px] relative flex items-end"
                 style={{ background: "linear-gradient(135deg,#1e1b4b 0%,#4f46e5 40%,#7c3aed 70%,#a855f7 100%)" }}>
@@ -597,7 +700,7 @@ function DashboardPage() {
                 <div className="grid grid-cols-3 gap-4 mb-7">
                   {[
                     { icon: "🗂️", title: "Create Spaces", desc: "Organise work into focused spaces for each team or project.", action: () => setShowCreateSpaceModal(true), cta: "Create a Space" },
-                    { icon: "📝", title: "Write Pages", desc: "Document processes, runbooks and knowledge with file attachments.", action: null, cta: null },
+                    { icon: "📝", title: "Write Pages", desc: "Document processes, runbooks and knowledge with rich content.", action: null, cta: null },
                     { icon: "👥", title: "Collaborate", desc: "Invite teammates, set roles and keep everyone on the same page.", action: null, cta: null },
                   ].map(card => (
                     <div key={card.title} className={`${T.card} border ${T.border} rounded-2xl p-5 flex flex-col gap-3`}>
@@ -663,10 +766,10 @@ function DashboardPage() {
         </div>
       )}
 
-      {/* Create Page */}
+      {/* Create Page — with Rich Editor */}
       {showCreatePageModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className={`${T.modal} rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 border ${T.border}`}>
+        <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 backdrop-blur-sm pt-10 pb-10 overflow-y-auto">
+          <div className={`${T.modal} rounded-2xl shadow-2xl w-full max-w-3xl mx-4 p-6 border ${T.border}`}>
             <div className="flex items-center justify-between mb-5">
               <h2 className={`text-[16px] font-semibold ${T.text}`}>Create Page</h2>
               <button onClick={() => setShowCreatePageModal(false)} className={T.hint}><X size={17} /></button>
@@ -675,18 +778,17 @@ function DashboardPage() {
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Title</label>
                 <input type="text" value={pageTitle} onChange={e => setPageTitle(e.target.value)} placeholder="Page title"
-                  className={`w-full border rounded-xl px-4 py-2.5 text-[13.5px] focus:outline-none focus:border-violet-400 ${T.input}`} />
+                  className={`w-full border rounded-xl px-4 py-2.5 text-[14px] font-semibold focus:outline-none focus:border-violet-400 ${T.input}`} />
               </div>
               <div>
-                <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Content <span className={`${T.hint} font-normal`}>(optional — you can add rich content after creating)</span></label>
-                <textarea value={pageContent} onChange={e => setPageContent(e.target.value)} rows={3} placeholder="Brief description or leave blank…"
-                  className={`w-full border rounded-xl px-4 py-2.5 text-[13.5px] focus:outline-none focus:border-violet-400 ${T.input} resize-none`} />
+                <label className={`block text-[12px] font-medium ${T.muted} mb-2`}>Content</label>
+                <RichTextEditor content={pageContent} onChange={setPageContent} isDark={isDark} minHeight="220px" />
               </div>
             </div>
             <div className="flex justify-end gap-2.5 mt-5">
               <button onClick={() => setShowCreatePageModal(false)}
                 className={`px-4 py-2 text-[13px] ${T.muted} border ${T.border} rounded-xl ${T.hover} transition`}>Cancel</button>
-              <button onClick={createPage} disabled={creatingPage}
+              <button onClick={createPage} disabled={creatingPage || !pageTitle.trim()}
                 className="px-5 py-2 text-[13px] font-medium bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl hover:opacity-90 transition disabled:opacity-50">
                 {creatingPage ? "Creating…" : "Create Page"}
               </button>
@@ -703,7 +805,6 @@ function DashboardPage() {
               <h2 className={`text-[16px] font-semibold ${T.text}`}>Edit Space</h2>
               <button onClick={() => setShowEditSpaceModal(false)} className={T.hint}><X size={17} /></button>
             </div>
-
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -717,23 +818,19 @@ function DashboardPage() {
                     className={`w-full border rounded-xl px-3.5 py-2 text-[13px] focus:outline-none focus:border-violet-400 ${T.input}`} />
                 </div>
               </div>
-
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className={`text-[12px] font-medium ${T.muted}`}>Space Icon <span className={`${T.hint} font-normal`}>(optional)</span></label>
                   {editIconIndex !== null && (
-                    <button onClick={() => setEditIconIndex(null)}
-                      className={`text-[11px] ${T.hint} hover:text-red-400 transition flex items-center gap-1`}>
-                      <X size={10} /> Remove icon
+                    <button onClick={() => setEditIconIndex(null)} className={`text-[11px] ${T.hint} hover:text-red-400 transition flex items-center gap-1`}>
+                      <X size={10} /> Remove
                     </button>
                   )}
                 </div>
                 <div className="grid grid-cols-8 gap-1.5">
                   {SPACE_ICONS.map((icon, i) => (
                     <button key={i} onClick={() => setEditIconIndex(editIconIndex === i ? null : i)} title={icon.label}
-                      className={`relative w-full aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 text-base border-2 transition hover:scale-105 ${
-                        editIconIndex === i ? "border-violet-500 scale-105 shadow-lg" : "border-transparent opacity-75 hover:opacity-100"
-                      }`}
+                      className={`relative w-full aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 text-base border-2 transition hover:scale-105 ${editIconIndex === i ? "border-violet-500 scale-105 shadow-lg" : "border-transparent opacity-75 hover:opacity-100"}`}
                       style={{ background: icon.bg }}>
                       <span>{icon.emoji}</span>
                       <span className="text-[7px] text-white/75 font-medium leading-none">{icon.label}</span>
@@ -742,22 +839,15 @@ function DashboardPage() {
                   ))}
                 </div>
               </div>
-
               <div>
-                <label className={`block text-[12px] font-medium ${T.muted} mb-2`}>
-                  Banner <span className={`${T.hint} font-normal`}>— Photo or Gradient</span>
-                </label>
+                <label className={`block text-[12px] font-medium ${T.muted} mb-2`}>Banner</label>
                 <p className={`text-[11px] ${T.hint} mb-1.5 uppercase tracking-wider font-semibold`}>Photos</p>
                 <div className="grid grid-cols-5 gap-2 mb-3">
                   {IMAGE_WALLPAPERS.map(wp => (
                     <button key={wp.id} onClick={() => setEditWallpaper(wp.id)} title={wp.name}
                       className={`h-14 rounded-xl border-2 transition overflow-hidden ${editWallpaper === wp.id ? "border-violet-500 scale-105 shadow-lg" : "border-transparent hover:scale-105"}`}
                       style={wp.style}>
-                      {editWallpaper === wp.id && (
-                        <div className="w-full h-full flex items-center justify-center bg-black/20">
-                          <Check size={14} className="text-white drop-shadow" />
-                        </div>
-                      )}
+                      {editWallpaper === wp.id && <div className="w-full h-full flex items-center justify-center bg-black/20"><Check size={14} className="text-white drop-shadow" /></div>}
                     </button>
                   ))}
                 </div>
@@ -767,16 +857,11 @@ function DashboardPage() {
                     <button key={wp.id} onClick={() => setEditWallpaper(wp.id)} title={wp.name}
                       className={`h-9 rounded-xl border-2 transition ${editWallpaper === wp.id ? "border-violet-500 scale-105 shadow-lg" : "border-transparent hover:scale-105"}`}
                       style={wp.style}>
-                      {editWallpaper === wp.id && (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Check size={12} className="text-white drop-shadow" />
-                        </div>
-                      )}
+                      {editWallpaper === wp.id && <div className="w-full h-full flex items-center justify-center"><Check size={12} className="text-white drop-shadow" /></div>}
                     </button>
                   ))}
                 </div>
               </div>
-
               {/* Preview */}
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-2`}>Preview</label>
@@ -798,26 +883,31 @@ function DashboardPage() {
                     )}
                     <div className="mt-1">
                       <div className={`text-[13px] font-semibold ${T.text}`}>{editSpaceName || "Space Name"}</div>
-                      <div className={`text-[11px] ${T.hint}`}>{editIconIndex !== null ? SPACE_ICONS[editIconIndex].label : "No icon selected"}</div>
+                      <div className={`text-[11px] ${T.hint}`}>{editIconIndex !== null ? SPACE_ICONS[editIconIndex].label : "No icon"}</div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-
-            <div className="flex justify-end gap-2.5 mt-5">
-              <button onClick={() => setShowEditSpaceModal(false)}
-                className={`px-4 py-2 text-[13px] ${T.muted} border ${T.border} rounded-xl ${T.hover} transition`}>Cancel</button>
-              <button onClick={saveWorkspace} disabled={savingSpace}
-                className="px-5 py-2 text-[13px] font-medium bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl hover:opacity-90 transition disabled:opacity-50">
-                {savingSpace ? "Saving…" : "Save Changes"}
+            <div className="flex items-center justify-between mt-5">
+              <button onClick={deleteSpace} disabled={deletingSpace}
+                className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-red-400 border border-red-900/40 rounded-xl hover:bg-red-900/20 transition disabled:opacity-50">
+                <Trash2 size={13} /> {deletingSpace ? "Deleting…" : "Delete Space"}
               </button>
+              <div className="flex gap-2.5">
+                <button onClick={() => setShowEditSpaceModal(false)}
+                  className={`px-4 py-2 text-[13px] ${T.muted} border ${T.border} rounded-xl ${T.hover} transition`}>Cancel</button>
+                <button onClick={saveWorkspace} disabled={savingSpace}
+                  className="px-5 py-2 text-[13px] font-medium bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl hover:opacity-90 transition disabled:opacity-50">
+                  {savingSpace ? "Saving…" : "Save Changes"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Invite Modal — with real API call */}
+      {/* Invite */}
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className={`${T.modal} rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 border ${T.border}`}>
@@ -828,39 +918,23 @@ function DashboardPage() {
               </div>
               <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className={T.hint}><X size={17} /></button>
             </div>
-
-            {/* Result message */}
             {inviteResult && (
-              <div className={`mb-4 px-4 py-3 rounded-xl text-[13px] ${
-                inviteResult.type === "success"
-                  ? (isDark ? "bg-green-900/30 border border-green-700/40 text-green-300" : "bg-green-50 border border-green-200 text-green-700")
-                  : (isDark ? "bg-red-900/30 border border-red-700/40 text-red-300" : "bg-red-50 border border-red-200 text-red-700")
-              }`}>
+              <div className={`mb-4 px-4 py-3 rounded-xl text-[13px] ${inviteResult.type === "success" ? (isDark ? "bg-green-900/30 border border-green-700/40 text-green-300" : "bg-green-50 border border-green-200 text-green-700") : (isDark ? "bg-red-900/30 border border-red-700/40 text-red-300" : "bg-red-50 border border-red-200 text-red-700")}`}>
                 {inviteResult.type === "success" ? "✓ " : "✕ "}{inviteResult.message}
               </div>
             )}
-
             <div className="space-y-4">
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Email address</label>
-                <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
-                  placeholder="colleague@company.com"
+                <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="colleague@company.com"
                   className={`w-full border rounded-xl px-4 py-2.5 text-[13.5px] focus:outline-none focus:border-violet-400 ${T.input}`} />
               </div>
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-2`}>Role</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: "viewer", label: "Viewer", desc: "Can read" },
-                    { value: "editor", label: "Editor", desc: "Can edit" },
-                    { value: "admin", label: "Admin", desc: "Full access" },
-                  ].map(r => (
+                  {[{value:"viewer",label:"Viewer",desc:"Can read"},{value:"editor",label:"Editor",desc:"Can edit"},{value:"admin",label:"Admin",desc:"Full access"}].map(r => (
                     <button key={r.value} onClick={() => setInviteRole(r.value)}
-                      className={`p-3 rounded-xl border-2 text-left transition ${
-                        inviteRole === r.value
-                          ? "border-violet-500 " + (isDark ? "bg-violet-900/30" : "bg-violet-50")
-                          : "border-transparent " + T.card + " " + T.hover
-                      }`}>
+                      className={`p-3 rounded-xl border-2 text-left transition ${inviteRole === r.value ? "border-violet-500 " + (isDark ? "bg-violet-900/30" : "bg-violet-50") : "border-transparent " + T.card + " " + T.hover}`}>
                       <div className={`text-[12.5px] font-semibold ${T.text}`}>{r.label}</div>
                       <div className={`text-[11px] ${T.hint}`}>{r.desc}</div>
                     </button>
@@ -869,11 +943,10 @@ function DashboardPage() {
               </div>
               <div className={`p-3 rounded-xl ${isDark ? "bg-blue-950/50 border border-blue-900/40" : "bg-blue-50 border border-blue-100"}`}>
                 <p className={`text-[12px] ${isDark ? "text-blue-300" : "text-blue-600"}`}>
-                  💡 If they already have an account they will be added instantly. If not, they will receive a registration invite email.
+                  💡 Existing users will be added instantly. New users will receive a registration email.
                 </p>
               </div>
             </div>
-
             <div className="flex justify-end gap-2.5 mt-5">
               <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }}
                 className={`px-4 py-2 text-[13px] ${T.muted} border ${T.border} rounded-xl ${T.hover} transition`}>
@@ -882,15 +955,13 @@ function DashboardPage() {
               {inviteResult?.type !== "success" && (
                 <button onClick={sendInvite} disabled={inviteLoading || !inviteEmail.trim()}
                   className="px-5 py-2 text-[13px] font-medium bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl hover:opacity-90 transition disabled:opacity-50 flex items-center gap-2">
-                  <UserPlus size={13} />
-                  {inviteLoading ? "Sending…" : "Send Invite"}
+                  <UserPlus size={13} />{inviteLoading ? "Sending…" : "Send Invite"}
                 </button>
               )}
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
