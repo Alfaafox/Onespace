@@ -31,7 +31,7 @@ export default function ChangePasswordPage() {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
-      await axios.post("http://192.168.11.69:5000/users/change-password",
+      await axios.post("http://localhost:5000/users/change-password",
         { newPassword },
         { headers: { Authorization: `Bearer ${token}` } }
       );

@@ -84,7 +84,7 @@ export default function DashboardPage() {
 
   const fetchWorkspaces = async () => {
     try {
-      const res = await axios.get("http://192.168.11.69:5000/workspaces", {
+      const res = await axios.get("http://localhost:5000/workspaces", {
         headers: authHeaders(),
       });
 
@@ -114,7 +114,7 @@ export default function DashboardPage() {
   const fetchPages = async (workspaceId: number) => {
     try {
       const res = await axios.get(
-        `http://192.168.11.69:5000/pages/workspace/${workspaceId}`,
+        `http://localhost:5000/pages/workspace/${workspaceId}`,
         {
           headers: authHeaders(),
         }
@@ -156,7 +156,7 @@ export default function DashboardPage() {
       setCreatingSpace(true);
 
       await axios.post(
-        "http://192.168.11.69:5000/workspaces",
+        "http://localhost:5000/workspaces",
         {
           name: spaceName.trim(),
           description: spaceDescription.trim(),
@@ -184,7 +184,7 @@ export default function DashboardPage() {
       setCreatingPage(true);
 
       await axios.post(
-        "http://192.168.11.69:5000/pages",
+        "http://localhost:5000/pages",
         {
           title: pageTitle.trim(),
           content: pageContent.trim(),
@@ -232,7 +232,7 @@ export default function DashboardPage() {
 
       // Try to persist if backend route exists; if not, keep UI working locally.
       await axios.put(
-        `http://192.168.11.69:5000/workspaces/${selectedWorkspace.id}`,
+        `http://localhost:5000/workspaces/${selectedWorkspace.id}`,
         {
           name: nextName,
           description: nextDescription,

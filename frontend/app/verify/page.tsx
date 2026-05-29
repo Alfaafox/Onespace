@@ -11,7 +11,7 @@ export default function VerifyPage() {
     const token = new URLSearchParams(window.location.search).get("token");
     if (!token) { setStatus("error"); setMessage("No verification token found."); return; }
 
-    axios.get(`http://192.168.11.69:5000/verify?token=${token}`)
+    axios.get(`http://localhost:5000/verify?token=${token}`)
       .then(res => { setStatus("success"); setMessage(res.data.message); })
       .catch(err => { setStatus("error"); setMessage(err?.response?.data?.error || "Verification failed."); });
   }, []);

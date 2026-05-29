@@ -47,8 +47,8 @@ export default function AdminPage() {
   const fetchAll = async () => {
     try {
       const [usersRes, statsRes] = await Promise.all([
-        axios.get("http://192.168.11.69:5000/admin/users", { headers: authHeaders() }),
-        axios.get("http://192.168.11.69:5000/admin/stats", { headers: authHeaders() }),
+        axios.get("http://localhost:5000/admin/users", { headers: authHeaders() }),
+        axios.get("http://localhost:5000/admin/stats", { headers: authHeaders() }),
       ]);
       setUsers(usersRes.data);
       setStats(statsRes.data);
@@ -59,7 +59,7 @@ export default function AdminPage() {
 
   const updateUser = async (userId: number, updates: Partial<{ role: string; verified: boolean }>) => {
     try {
-      const res = await axios.put(`http://192.168.11.69:5000/admin/users/${userId}`, updates, { headers: authHeaders() });
+      const res = await axios.put(`http://localhost:5000/admin/users/${userId}`, updates, { headers: authHeaders() });
       setUsers(p => p.map(u => u.id === userId ? { ...u, ...res.data } : u));
     } catch (err: any) { alert(err?.response?.data?.error || "Failed to update user"); }
   };
@@ -67,7 +67,7 @@ export default function AdminPage() {
   const deleteUser = async (userId: number, username: string) => {
     if (!window.confirm(`Delete user "${username}"? This cannot be undone.`)) return;
     try {
-      await axios.delete(`http://192.168.11.69:5000/admin/users/${userId}`, { headers: authHeaders() });
+      await axios.delete(`http://localhost:5000/admin/users/${userId}`, { headers: authHeaders() });
       setUsers(p => p.filter(u => u.id !== userId));
       if (stats) setStats({ ...stats, users: stats.users - 1 });
     } catch (err: any) { alert(err?.response?.data?.error || "Failed to delete user"); }
@@ -81,7 +81,7 @@ export default function AdminPage() {
     if (newPassword.length < 6) { setCreateError("Password must be at least 6 characters"); return; }
     try {
       setCreating(true);
-      const res = await axios.post("http://192.168.11.69:5000/admin/users/create",
+      const res = await axios.post("http://localhost:5000/admin/users/create",
         { username: newName.trim(), email: newEmail.trim(), password: newPassword, role: newRole },
         { headers: authHeaders() }
       );

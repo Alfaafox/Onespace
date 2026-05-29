@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, Suspense } from "react";
+import { useEffect, useMemo, useState, Suspense, useRef } from "react";
 import dynamic from "next/dynamic";
 import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -13,7 +13,7 @@ import {
 
 const RichTextEditor = dynamic(
   () => import("../../components/RichTextEditor"),
-  { ssr: false, loading: () => <div style={{ height: "200px", display: "flex", alignItems: "center", justifyContent: "center", color: "#8892a4", fontSize: "13px" }}>Loading editor…</div> }
+  { ssr: false, loading: () => <div style={{ height:"200px", display:"flex", alignItems:"center", justifyContent:"center", color:"#8892a4", fontSize:"13px" }}>Loading editor…</div> }
 );
 
 const LIGHT = {
@@ -71,7 +71,7 @@ const SPACE_ICONS = [
   { emoji:"📣", label:"Marketing",   bg:"linear-gradient(135deg,#c2410c,#fb923c)" },
   { emoji:"🔮", label:"Product",     bg:"linear-gradient(135deg,#6d28d9,#c084fc)" },
   { emoji:"🎨", label:"Design",      bg:"linear-gradient(135deg,#be185d,#f9a8d4)" },
-  { emoji:"⚙️",label:"Operations", bg:"linear-gradient(135deg,#374151,#9ca3af)" },
+  { emoji:"⚙️",label:"Operations",  bg:"linear-gradient(135deg,#374151,#9ca3af)" },
   { emoji:"🔐", label:"Security",    bg:"linear-gradient(135deg,#1e3a5f,#2563eb)" },
   { emoji:"📊", label:"Analytics",   bg:"linear-gradient(135deg,#0e7490,#22d3ee)" },
   { emoji:"🏗️",label:"Infra",       bg:"linear-gradient(135deg,#78350f,#d97706)" },
@@ -86,60 +86,60 @@ const SPACE_ICONS = [
   { emoji:"🎯", label:"Strategy",    bg:"linear-gradient(135deg,#991b1b,#ef4444)" },
 ];
 
-interface Workspace { id: number; name: string; description: string; }
-interface Page { id: number; title: string; content: string; workspace_id: number; }
-interface WorkspaceRole { workspace_id: number; role: string; }
-interface SpacePref { wallpaper: string; icon: string | null; iconBg: string | null; }
+interface Workspace { id:number; name:string; description:string; }
+interface Page { id:number; title:string; content:string; workspace_id:number; created_at?:string; updated_at?:string; }
+interface WorkspaceRole { workspace_id:number; role:string; }
+interface SpacePref { wallpaper:string; icon:string|null; iconBg:string|null; }
+interface NotifItem { workspaceId:number; workspaceName:string; count:number; }
 
-const getInitials = (name: string) => name.trim().split(" ").slice(0, 2).map(w => w[0]?.toUpperCase()).join("");
+const getInitials = (name:string) => name.trim().split(" ").slice(0,2).map(w=>w[0]?.toUpperCase()).join("");
 
 function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isDark, setIsDark] = useState(false);
   const T = isDark ? DARK : LIGHT;
+  const notifRef = useRef<HTMLDivElement>(null);
 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [pages, setPages] = useState<Page[]>([]);
-  const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
+  const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace|null>(null);
   const [workspaceRoles, setWorkspaceRoles] = useState<WorkspaceRole[]>([]);
-  const [expandedWorkspaceId, setExpandedWorkspaceId] = useState<number | null>(null);
-  const [workspacePages, setWorkspacePages] = useState<Record<number, Page[]>>({});
-  const [spacePrefs, setSpacePrefs] = useState<Record<number, SpacePref>>({});
+  const [expandedWorkspaceId, setExpandedWorkspaceId] = useState<number|null>(null);
+  const [workspacePages, setWorkspacePages] = useState<Record<number,Page[]>>({});
+  const [spacePrefs, setSpacePrefs] = useState<Record<number,SpacePref>>({});
   const [userRole, setUserRole] = useState<string>("user");
 
-  // Recent & Starred
+  const [notifications, setNotifications] = useState<NotifItem[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
   const [recentIds, setRecentIds] = useState<number[]>([]);
   const [starredIds, setStarredIds] = useState<number[]>([]);
   const [showRecent, setShowRecent] = useState(false);
   const [showStarred, setShowStarred] = useState(false);
 
-  // Modals
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [showCreateSpaceModal, setShowCreateSpaceModal] = useState(false);
   const [showCreatePageModal, setShowCreatePageModal] = useState(false);
   const [showEditSpaceModal, setShowEditSpaceModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
-  // Search
   const [searchTerm, setSearchTerm] = useState("");
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [spaceSearch, setSpaceSearch] = useState("");
   const [shareCopied, setShareCopied] = useState(false);
 
-  // Invite
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("viewer");
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteResult, setInviteResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [inviteResult, setInviteResult] = useState<{type:"success"|"error";message:string}|null>(null);
 
-  // Forms
   const [spaceName, setSpaceName] = useState("");
   const [spaceDescription, setSpaceDescription] = useState("");
   const [editSpaceName, setEditSpaceName] = useState("");
   const [editSpaceDescription, setEditSpaceDescription] = useState("");
   const [editWallpaper, setEditWallpaper] = useState(GRADIENT_WALLPAPERS[0].id);
-  const [editIconIndex, setEditIconIndex] = useState<number | null>(null);
+  const [editIconIndex, setEditIconIndex] = useState<number|null>(null);
   const [pageTitle, setPageTitle] = useState("");
   const [pageContent, setPageContent] = useState("");
   const [creatingSpace, setCreatingSpace] = useState(false);
@@ -148,355 +148,335 @@ function DashboardPage() {
   const [deletingSpace, setDeletingSpace] = useState(false);
 
   const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` });
+  const API = "http://localhost:5000";
 
-  const getSpacePref = (id: number): SpacePref => {
+  const getSpacePref = (id:number):SpacePref => {
     if (spacePrefs[id]) return spacePrefs[id];
-    try { const s = localStorage.getItem(`space_pref_${id}`); if (s) return JSON.parse(s); } catch {}
-    return { wallpaper: GRADIENT_WALLPAPERS[0].id, icon: null, iconBg: null };
+    try { const s=localStorage.getItem(`space_pref_${id}`); if(s) return JSON.parse(s); } catch {}
+    return { wallpaper:GRADIENT_WALLPAPERS[0].id, icon:null, iconBg:null };
   };
 
-  const saveSpacePref = (id: number, pref: SpacePref) => {
+  const saveSpacePref = (id:number, pref:SpacePref) => {
     localStorage.setItem(`space_pref_${id}`, JSON.stringify(pref));
-    setSpacePrefs(p => ({ ...p, [id]: pref }));
+    setSpacePrefs(p=>({...p,[id]:pref}));
   };
 
-  const trackRecent = (wsId: number) => {
-    const recents: number[] = JSON.parse(localStorage.getItem("recent_spaces") || "[]");
-    const updated = [wsId, ...recents.filter(id => id !== wsId)].slice(0, 5);
+  const trackRecent = (wsId:number) => {
+    const recents:number[] = JSON.parse(localStorage.getItem("recent_spaces")||"[]");
+    const updated = [wsId,...recents.filter(id=>id!==wsId)].slice(0,5);
     localStorage.setItem("recent_spaces", JSON.stringify(updated));
     setRecentIds(updated);
   };
 
-  const toggleStar = (wsId: number, e: React.MouseEvent) => {
+  const markWorkspaceSeen = (wsId:number) => {
+    localStorage.setItem(`last_seen_ws_${wsId}`, Date.now().toString());
+    setNotifications(prev=>prev.filter(n=>n.workspaceId!==wsId));
+  };
+
+  const markAllRead = () => {
+    notifications.forEach(n=>localStorage.setItem(`last_seen_ws_${n.workspaceId}`, Date.now().toString()));
+    setNotifications([]); setShowNotifications(false);
+  };
+
+  const checkNotificationsForWorkspace = async (ws:Workspace): Promise<NotifItem|null> => {
+    try {
+      const lastSeen = parseInt(localStorage.getItem(`last_seen_ws_${ws.id}`)||"0");
+      if (lastSeen===0) return null;
+      const res = await axios.get(`${API}/pages/workspace/${ws.id}`,{headers:authHeaders()});
+      const pgs:Page[] = Array.isArray(res.data)?res.data:[];
+      const newItems = pgs.filter(p=>{
+        const t = new Date(p.updated_at||p.created_at||0).getTime();
+        return t>lastSeen;
+      });
+      if (newItems.length>0) return {workspaceId:ws.id,workspaceName:ws.name,count:newItems.length};
+    } catch {}
+    return null;
+  };
+
+  const toggleStar = (wsId:number, e:React.MouseEvent) => {
     e.stopPropagation();
-    const starred: number[] = JSON.parse(localStorage.getItem("starred_spaces") || "[]");
+    const starred:number[] = JSON.parse(localStorage.getItem("starred_spaces")||"[]");
     const isStarred = starred.includes(wsId);
-    const updated = isStarred ? starred.filter(id => id !== wsId) : [...starred, wsId];
+    const updated = isStarred?starred.filter(id=>id!==wsId):[...starred,wsId];
     localStorage.setItem("starred_spaces", JSON.stringify(updated));
     setStarredIds(updated);
   };
 
-  useEffect(() => {
-    const saved = localStorage.getItem("theme");
-    if (saved === "dark") setIsDark(true);
-    const recents: number[] = JSON.parse(localStorage.getItem("recent_spaces") || "[]");
-    const starred: number[] = JSON.parse(localStorage.getItem("starred_spaces") || "[]");
-    setRecentIds(recents);
-    setStarredIds(starred);
-    // Sync cookie for middleware
-    const token = localStorage.getItem("token");
-    if (token) {
-      document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
-    } else {
-      router.push("/login");
-      return;
-    }
+  useEffect(()=>{
+    const handler=(e:MouseEvent)=>{
+      if(notifRef.current&&!notifRef.current.contains(e.target as Node)) setShowNotifications(false);
+    };
+    document.addEventListener("mousedown",handler);
+    return ()=>document.removeEventListener("mousedown",handler);
+  },[]);
+
+  useEffect(()=>{
+    if(localStorage.getItem("theme")==="dark") setIsDark(true);
+    const recents:number[]=JSON.parse(localStorage.getItem("recent_spaces")||"[]");
+    const starred:number[]=JSON.parse(localStorage.getItem("starred_spaces")||"[]");
+    setRecentIds(recents); setStarredIds(starred);
+    const token=localStorage.getItem("token");
+    if(token){ document.cookie=`auth_token=${token}; path=/; max-age=${7*24*60*60}; SameSite=Lax`; }
+    else { router.push("/login"); return; }
     fetchWorkspaces();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  },[]);
 
-  const toggleTheme = () => {
-    setIsDark(d => { localStorage.setItem("theme", !d ? "dark" : "light"); return !d; });
-  };
+  const toggleTheme = ()=>setIsDark(d=>{localStorage.setItem("theme",!d?"dark":"light");return !d;});
 
-  useEffect(() => {
-    if (!selectedWorkspace) return;
-    const pref = getSpacePref(selectedWorkspace.id);
+  useEffect(()=>{
+    if(!selectedWorkspace) return;
+    const pref=getSpacePref(selectedWorkspace.id);
     setEditSpaceName(selectedWorkspace.name);
     setEditSpaceDescription(selectedWorkspace.description);
     setEditWallpaper(pref.wallpaper);
-    const idx = pref.icon ? SPACE_ICONS.findIndex(i => i.emoji === pref.icon) : null;
-    setEditIconIndex(idx !== null && idx >= 0 ? idx : null);
+    const idx=pref.icon?SPACE_ICONS.findIndex(i=>i.emoji===pref.icon):null;
+    setEditIconIndex(idx!==null&&idx>=0?idx:null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedWorkspace]);
+  },[selectedWorkspace]);
 
-  const currentRole = useMemo(() => {
-    if (!selectedWorkspace) return "viewer";
-    return workspaceRoles.find(r => r.workspace_id === selectedWorkspace.id)?.role || "viewer";
-  }, [selectedWorkspace, workspaceRoles]);
+  const currentRole = useMemo(()=>{
+    if(!selectedWorkspace) return "viewer";
+    return workspaceRoles.find(r=>r.workspace_id===selectedWorkspace.id)?.role||"viewer";
+  },[selectedWorkspace,workspaceRoles]);
 
-  const canEdit = currentRole === "admin" || currentRole === "editor";
+  const canEdit = currentRole==="admin"||currentRole==="editor";
 
-  const fetchWorkspaces = async () => {
+  const fetchWorkspaces = async ()=>{
     try {
-      const res = await axios.get("http://192.168.11.69:5000/workspaces", { headers: authHeaders() });
+      const res=await axios.get(`${API}/workspaces`,{headers:authHeaders()});
       setWorkspaces(res.data);
-      setWorkspaceRoles(res.data.map((w: Workspace) => ({ workspace_id: w.id, role: "admin" })));
-      // Get user role
-      try {
-        const token = localStorage.getItem("token");
-        if (token) {
-          const payload = JSON.parse(atob(token.split(".")[1]));
-          const userRes = await axios.get(`http://192.168.11.69:5000/users/search?q=_self_`, { headers: authHeaders() });
-          // Simple role check via admin endpoint
-          try {
-            await axios.get("http://192.168.11.69:5000/admin/stats", { headers: authHeaders() });
-            setUserRole("admin");
-          } catch { setUserRole("user"); }
-        }
-      } catch {}
-      const qWs = searchParams.get("workspace");
-      const target = (qWs ? res.data.find((w: Workspace) => String(w.id) === qWs) : null) || (res.data[0] || null);
-      if (target) { setSelectedWorkspace(target); setExpandedWorkspaceId(target.id); fetchPages(target.id); trackRecent(target.id); }
-    } catch (err) { console.error(err); }
+      setWorkspaceRoles(res.data.map((w:Workspace)=>({workspace_id:w.id,role:"admin"})));
+      try { await axios.get(`${API}/admin/stats`,{headers:authHeaders()}); setUserRole("admin"); }
+      catch { setUserRole("user"); }
+      const notifResults=await Promise.all(res.data.map((ws:Workspace)=>checkNotificationsForWorkspace(ws)));
+      setNotifications(notifResults.filter(Boolean) as NotifItem[]);
+      const qWs=searchParams.get("workspace");
+      const target=(qWs?res.data.find((w:Workspace)=>String(w.id)===qWs):null)||(res.data[0]||null);
+      if(target){ setSelectedWorkspace(target); setExpandedWorkspaceId(target.id); fetchPages(target.id); trackRecent(target.id); }
+    } catch(err){ console.error(err); }
   };
 
-  const fetchPages = async (workspaceId: number) => {
+  const fetchPages = async (workspaceId:number)=>{
     try {
-      const res = await axios.get(`http://192.168.11.69:5000/pages/workspace/${workspaceId}`, { headers: authHeaders() });
-      const data = Array.isArray(res.data) ? res.data : [];
-      setPages(data);
-      setWorkspacePages(p => ({ ...p, [workspaceId]: data }));
+      const res=await axios.get(`${API}/pages/workspace/${workspaceId}`,{headers:authHeaders()});
+      const data=Array.isArray(res.data)?res.data:[];
+      setPages(data); setWorkspacePages(p=>({...p,[workspaceId]:data}));
     } catch { setPages([]); }
   };
 
-  const selectWorkspace = async (ws: Workspace) => {
+  const selectWorkspace = async (ws:Workspace)=>{
     setSelectedWorkspace(ws); setExpandedWorkspaceId(ws.id); setSpaceSearch("");
-    trackRecent(ws.id);
-    await fetchPages(ws.id);
+    trackRecent(ws.id); markWorkspaceSeen(ws.id); await fetchPages(ws.id);
   };
 
-  const toggleExpand = async (ws: Workspace) => {
-    if (expandedWorkspaceId === ws.id) { setExpandedWorkspaceId(null); return; }
-    setExpandedWorkspaceId(ws.id); setSelectedWorkspace(ws); trackRecent(ws.id);
-    await fetchPages(ws.id);
+  const toggleExpand = async (ws:Workspace)=>{
+    if(expandedWorkspaceId===ws.id){ setExpandedWorkspaceId(null); return; }
+    setExpandedWorkspaceId(ws.id); setSelectedWorkspace(ws);
+    trackRecent(ws.id); markWorkspaceSeen(ws.id); await fetchPages(ws.id);
   };
 
-  const createWorkspace = async () => {
-    if (!spaceName.trim()) return;
+  const createWorkspace = async ()=>{
+    if(!spaceName.trim()) return;
     try {
       setCreatingSpace(true);
-      await axios.post("http://192.168.11.69:5000/workspaces", { name: spaceName.trim(), description: spaceDescription.trim() }, { headers: authHeaders() });
-      setShowCreateSpaceModal(false); setSpaceName(""); setSpaceDescription("");
-      fetchWorkspaces();
-    } catch (err) { console.error(err); } finally { setCreatingSpace(false); }
+      await axios.post(`${API}/workspaces`,{name:spaceName.trim(),description:spaceDescription.trim()},{headers:authHeaders()});
+      setShowCreateSpaceModal(false); setSpaceName(""); setSpaceDescription(""); fetchWorkspaces();
+    } catch(err){ console.error(err); } finally { setCreatingSpace(false); }
   };
 
-  const createPage = async () => {
-    if (!selectedWorkspace || !pageTitle.trim()) return;
+  const createPage = async ()=>{
+    if(!selectedWorkspace||!pageTitle.trim()) return;
     try {
       setCreatingPage(true);
-      await axios.post("http://192.168.11.69:5000/pages",
-        { title: pageTitle.trim(), content: pageContent, workspace_id: selectedWorkspace.id, parent_page_id: null },
-        { headers: authHeaders() }
-      );
-      setShowCreatePageModal(false); setPageTitle(""); setPageContent("");
-      fetchPages(selectedWorkspace.id);
-    } catch (err) { console.error(err); } finally { setCreatingPage(false); }
+      await axios.post(`${API}/pages`,{title:pageTitle.trim(),content:pageContent,workspace_id:selectedWorkspace.id,parent_page_id:null},{headers:authHeaders()});
+      setShowCreatePageModal(false); setPageTitle(""); setPageContent(""); fetchPages(selectedWorkspace.id);
+    } catch(err){ console.error(err); } finally { setCreatingPage(false); }
   };
 
-  const saveWorkspace = async () => {
-    if (!selectedWorkspace) return;
-    const nextName = editSpaceName.trim() || selectedWorkspace.name;
-    const nextDesc = editSpaceDescription.trim();
-    const iconData = editIconIndex !== null ? SPACE_ICONS[editIconIndex] : null;
+  const saveWorkspace = async ()=>{
+    if(!selectedWorkspace) return;
+    const nextName=editSpaceName.trim()||selectedWorkspace.name;
+    const nextDesc=editSpaceDescription.trim();
+    const iconData=editIconIndex!==null?SPACE_ICONS[editIconIndex]:null;
     try {
       setSavingSpace(true);
-      await axios.put(`http://192.168.11.69:5000/workspaces/${selectedWorkspace.id}`,
-        { name: nextName, description: nextDesc }, { headers: authHeaders() }
-      );
-      saveSpacePref(selectedWorkspace.id, { wallpaper: editWallpaper, icon: iconData?.emoji || null, iconBg: iconData?.bg || null });
-    } catch (err) { console.error(err); } finally {
-      setWorkspaces(p => p.map(w => w.id === selectedWorkspace.id ? { ...w, name: nextName, description: nextDesc } : w));
-      setSelectedWorkspace(p => p ? { ...p, name: nextName, description: nextDesc } : p);
+      await axios.put(`${API}/workspaces/${selectedWorkspace.id}`,{name:nextName,description:nextDesc},{headers:authHeaders()});
+      saveSpacePref(selectedWorkspace.id,{wallpaper:editWallpaper,icon:iconData?.emoji||null,iconBg:iconData?.bg||null});
+    } catch(err){ console.error(err); } finally {
+      setWorkspaces(p=>p.map(w=>w.id===selectedWorkspace.id?{...w,name:nextName,description:nextDesc}:w));
+      setSelectedWorkspace(p=>p?{...p,name:nextName,description:nextDesc}:p);
       setShowEditSpaceModal(false); setSavingSpace(false);
     }
   };
 
-  const deleteSpace = async () => {
-    if (!selectedWorkspace) return;
-    if (!window.confirm(`Delete "${selectedWorkspace.name}"? This will also delete all its pages. This cannot be undone.`)) return;
+  const deleteSpace = async ()=>{
+    if(!selectedWorkspace) return;
+    if(!window.confirm(`Delete "${selectedWorkspace.name}"? This cannot be undone.`)) return;
     try {
       setDeletingSpace(true);
-      await axios.delete(`http://192.168.11.69:5000/workspaces/${selectedWorkspace.id}`, { headers: authHeaders() });
-      setWorkspaces(p => p.filter(w => w.id !== selectedWorkspace.id));
+      await axios.delete(`${API}/workspaces/${selectedWorkspace.id}`,{headers:authHeaders()});
+      setWorkspaces(p=>p.filter(w=>w.id!==selectedWorkspace.id));
       setSelectedWorkspace(null); setPages([]); setShowEditSpaceModal(false);
-    } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to delete space");
-    } finally { setDeletingSpace(false); }
+    } catch(err:any){ alert(err?.response?.data?.error||"Failed to delete space"); }
+    finally { setDeletingSpace(false); }
   };
 
-  const shareWorkspace = async () => {
-    if (!selectedWorkspace) return;
-    const url = `${window.location.origin}/dashboard?workspace=${selectedWorkspace.id}`;
-    try { await navigator.clipboard.writeText(url); setShareCopied(true); setTimeout(() => setShareCopied(false), 2000); }
+  const shareWorkspace = async ()=>{
+    if(!selectedWorkspace) return;
+    const url=`${window.location.origin}/dashboard?workspace=${selectedWorkspace.id}`;
+    try { await navigator.clipboard.writeText(url); setShareCopied(true); setTimeout(()=>setShareCopied(false),2000); }
     catch { window.alert(`Copy this link:\n${url}`); }
   };
 
-  const sendInvite = async () => {
-    if (!inviteEmail.trim() || !selectedWorkspace) return;
+  const sendInvite = async ()=>{
+    if(!inviteEmail.trim()||!selectedWorkspace) return;
     try {
       setInviteLoading(true); setInviteResult(null);
-      const res = await axios.post(`http://192.168.11.69:5000/workspaces/${selectedWorkspace.id}/invite`,
-        { email: inviteEmail.trim(), role: inviteRole }, { headers: authHeaders() }
-      );
-      setInviteResult({ type: "success", message: res.data.message });
-      setInviteEmail("");
-    } catch (err: any) {
-      setInviteResult({ type: "error", message: err?.response?.data?.error || "Invite failed" });
-    } finally { setInviteLoading(false); }
+      const res=await axios.post(`${API}/workspaces/${selectedWorkspace.id}/invite`,{email:inviteEmail.trim(),role:inviteRole},{headers:authHeaders()});
+      setInviteResult({type:"success",message:res.data.message}); setInviteEmail("");
+    } catch(err:any){ setInviteResult({type:"error",message:err?.response?.data?.error||"Invite failed"}); }
+    finally { setInviteLoading(false); }
   };
 
-  const logout = () => {
+  const logout = ()=>{
     localStorage.removeItem("token");
-    document.cookie = "auth_token=; path=/; max-age=0; SameSite=Lax";
+    document.cookie="auth_token=; path=/; max-age=0; SameSite=Lax";
     router.push("/login");
   };
 
-  const allPages = useMemo(() => Object.values(workspacePages).flat(), [workspacePages]);
+  const allPages = useMemo(()=>Object.values(workspacePages).flat(),[workspacePages]);
 
-  const globalSearch = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase(); if (!q) return { spaces: [], pages: [] };
+  const globalSearch = useMemo(()=>{
+    const q=searchTerm.trim().toLowerCase(); if(!q) return {spaces:[],pages:[]};
     return {
-      spaces: workspaces.filter(w => w.name.toLowerCase().includes(q) || w.description.toLowerCase().includes(q)),
-      pages: allPages.filter(p => p.title.toLowerCase().includes(q) || p.content?.toLowerCase().includes(q)),
+      spaces:workspaces.filter(w=>w.name.toLowerCase().includes(q)||w.description.toLowerCase().includes(q)),
+      pages:allPages.filter(p=>p.title.toLowerCase().includes(q)||p.content?.toLowerCase().includes(q)),
     };
-  }, [searchTerm, workspaces, allPages]);
+  },[searchTerm,workspaces,allPages]);
 
-  const spaceFilteredPages = useMemo(() => {
-    const q = spaceSearch.trim().toLowerCase(); if (!q) return pages;
-    return pages.filter(p => p.title.toLowerCase().includes(q) || p.content?.toLowerCase().includes(q));
-  }, [spaceSearch, pages]);
+  const spaceFilteredPages = useMemo(()=>{
+    const q=spaceSearch.trim().toLowerCase(); if(!q) return pages;
+    return pages.filter(p=>p.title.toLowerCase().includes(q)||p.content?.toLowerCase().includes(q));
+  },[spaceSearch,pages]);
 
-  const currentPref = selectedWorkspace ? getSpacePref(selectedWorkspace.id) : null;
-  const bannerStyle = currentPref ? getWallpaperStyle(currentPref.wallpaper) : GRADIENT_WALLPAPERS[0].style;
-
-  const recentWorkspaces = recentIds.map(id => workspaces.find(w => w.id === id)).filter(Boolean) as Workspace[];
-  const starredWorkspaces = starredIds.map(id => workspaces.find(w => w.id === id)).filter(Boolean) as Workspace[];
+  const currentPref = selectedWorkspace?getSpacePref(selectedWorkspace.id):null;
+  const bannerStyle = currentPref?getWallpaperStyle(currentPref.wallpaper):GRADIENT_WALLPAPERS[0].style;
+  const recentWorkspaces = recentIds.map(id=>workspaces.find(w=>w.id===id)).filter(Boolean) as Workspace[];
+  const starredWorkspaces = starredIds.map(id=>workspaces.find(w=>w.id===id)).filter(Boolean) as Workspace[];
+  const totalNotifications = notifications.reduce((s,n)=>s+n.count,0);
 
   return (
     <div className={`h-screen flex overflow-hidden ${T.bg} transition-colors duration-200`}>
 
-      {/* ══ SIDEBAR ══ */}
+      {/* SIDEBAR */}
       <div className={`w-[258px] ${T.sidebar} border-r ${T.border} flex flex-col shrink-0 transition-colors duration-200`}>
-
         <div className={`h-[62px] border-b ${T.border} flex items-center justify-center shrink-0 overflow-hidden`}>
-          <img src="/onespace.png" alt="OneSpace" className="h-[62px] w-auto scale-[2.1] object-contain" />
+          <img src="/onespace.png" alt="OneSpace" className="h-[62px] w-auto scale-[2.1] object-contain"/>
         </div>
-
         <div className="p-3 relative">
-          <button onClick={() => setShowCreateMenu(p => !p)}
+          <button onClick={()=>setShowCreateMenu(p=>!p)}
             className="w-full h-[40px] rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[13px] font-medium flex items-center justify-center gap-2 shadow hover:shadow-md transition-all">
-            <Plus size={13} /> Create <ChevronDown size={12} />
+            <Plus size={13}/> Create <ChevronDown size={12}/>
           </button>
           {showCreateMenu && (
             <div className={`absolute top-[52px] left-3 right-3 ${T.modal} border ${T.border} rounded-xl shadow-2xl overflow-hidden z-30`}>
-              <button onClick={() => { setShowCreateMenu(false); setShowCreateSpaceModal(true); }}
+              <button onClick={()=>{setShowCreateMenu(false);setShowCreateSpaceModal(true);}}
                 className={`w-full px-4 py-2.5 text-left text-[13px] ${T.hover} transition flex items-center gap-2.5`}>
                 <span className="text-base">🗂️</span><span className={T.text}>New Space</span>
               </button>
-              <button onClick={() => { setShowCreateMenu(false); setShowCreatePageModal(true); }}
+              <button onClick={()=>{setShowCreateMenu(false);setShowCreatePageModal(true);}}
                 className={`w-full px-4 py-2.5 text-left text-[13px] ${T.hover} transition flex items-center gap-2.5 border-t ${T.border}`}>
                 <span className="text-base">📝</span><span className={T.text}>New Page</span>
               </button>
             </div>
           )}
         </div>
-
-        {/* Nav links */}
         <div className="px-3 pb-1 space-y-0.5">
-          {/* Recent */}
           <div>
-            <button onClick={() => setShowRecent(!showRecent)}
+            <button onClick={()=>setShowRecent(!showRecent)}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[12.5px] ${T.muted} ${T.hover} transition`}>
               <span className="flex items-center gap-2"><Clock size={13}/> Recent</span>
-              <ChevronDown size={11} className={`transition-transform ${showRecent ? "rotate-180" : ""}`}/>
+              <ChevronDown size={11} className={`transition-transform ${showRecent?"rotate-180":""}`}/>
             </button>
-            {showRecent && recentWorkspaces.length > 0 && (
+            {showRecent&&recentWorkspaces.length>0&&(
               <div className={`ml-3 pl-3 border-l ${T.border} space-y-0.5`}>
-                {recentWorkspaces.map(ws => (
-                  <button key={ws.id} onClick={() => selectWorkspace(ws)}
-                    className={`w-full text-left px-2 py-1.5 rounded-lg text-[11.5px] ${T.muted} ${T.hover} transition truncate`}>
-                    {ws.name}
-                  </button>
+                {recentWorkspaces.map(ws=>(
+                  <button key={ws.id} onClick={()=>selectWorkspace(ws)}
+                    className={`w-full text-left px-2 py-1.5 rounded-lg text-[11.5px] ${T.muted} ${T.hover} transition truncate`}>{ws.name}</button>
                 ))}
               </div>
             )}
-            {showRecent && recentWorkspaces.length === 0 && (
-              <p className={`text-[11px] ${T.hint} px-6 py-1`}>No recent spaces</p>
-            )}
+            {showRecent&&recentWorkspaces.length===0&&<p className={`text-[11px] ${T.hint} px-6 py-1`}>No recent spaces</p>}
           </div>
-
-          {/* Starred */}
           <div>
-            <button onClick={() => setShowStarred(!showStarred)}
+            <button onClick={()=>setShowStarred(!showStarred)}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[12.5px] ${T.muted} ${T.hover} transition`}>
               <span className="flex items-center gap-2"><Star size={13}/> Starred</span>
-              <ChevronDown size={11} className={`transition-transform ${showStarred ? "rotate-180" : ""}`}/>
+              <ChevronDown size={11} className={`transition-transform ${showStarred?"rotate-180":""}`}/>
             </button>
-            {showStarred && starredWorkspaces.length > 0 && (
+            {showStarred&&starredWorkspaces.length>0&&(
               <div className={`ml-3 pl-3 border-l ${T.border} space-y-0.5`}>
-                {starredWorkspaces.map(ws => (
-                  <button key={ws.id} onClick={() => selectWorkspace(ws)}
-                    className={`w-full text-left px-2 py-1.5 rounded-lg text-[11.5px] ${T.muted} ${T.hover} transition truncate`}>
-                    {ws.name}
-                  </button>
+                {starredWorkspaces.map(ws=>(
+                  <button key={ws.id} onClick={()=>selectWorkspace(ws)}
+                    className={`w-full text-left px-2 py-1.5 rounded-lg text-[11.5px] ${T.muted} ${T.hover} transition truncate`}>{ws.name}</button>
                 ))}
               </div>
             )}
-            {showStarred && starredWorkspaces.length === 0 && (
-              <p className={`text-[11px] ${T.hint} px-6 py-1`}>No starred spaces</p>
-            )}
+            {showStarred&&starredWorkspaces.length===0&&<p className={`text-[11px] ${T.hint} px-6 py-1`}>No starred spaces</p>}
           </div>
-
-          {/* Teams */}
-          <button onClick={() => router.push("/teams")}
+          <button onClick={()=>router.push("/teams")}
             className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[12.5px] ${T.muted} ${T.hover} transition`}>
             <Users size={13}/> Teams
           </button>
-
-          {/* Admin — only for admins */}
-          {userRole === "admin" && (
-            <button onClick={() => router.push("/admin")}
+          {userRole==="admin"&&(
+            <button onClick={()=>router.push("/admin")}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[12.5px] ${T.muted} ${T.hover} transition`}>
               <Shield size={13}/> Admin Panel
             </button>
           )}
         </div>
-
-        {/* Spaces list */}
         <div className="flex-1 overflow-y-auto px-3 pb-4">
           <div className={`px-2 mb-2 mt-3 text-[10.5px] font-bold tracking-[2px] ${T.hint} uppercase`}>Spaces</div>
           <div className="space-y-0.5">
-            {workspaces.map(ws => {
-              const pref = getSpacePref(ws.id);
-              const isSelected = selectedWorkspace?.id === ws.id;
-              const isExpanded = expandedWorkspaceId === ws.id;
-              const isStarred = starredIds.includes(ws.id);
+            {workspaces.map(ws=>{
+              const pref=getSpacePref(ws.id);
+              const isSelected=selectedWorkspace?.id===ws.id;
+              const isExpanded=expandedWorkspaceId===ws.id;
+              const isStarred=starredIds.includes(ws.id);
+              const hasNotif=notifications.some(n=>n.workspaceId===ws.id);
               return (
                 <div key={ws.id}>
-                  <div className={`w-full rounded-xl transition-all flex items-center gap-1.5 pr-1.5 ${
-                    isSelected ? (isDark ? "bg-[#1e2235] border border-[#3d4266]" : "bg-violet-50 border border-violet-200 shadow-sm") : `border border-transparent ${T.hover}`
-                  }`}>
-                    <button onClick={() => toggleExpand(ws)} className="flex-1 flex items-center gap-2 px-2.5 py-2 text-left min-w-0">
-                      {pref.icon ? (
-                        <div className="w-6 h-6 rounded-lg flex items-center justify-center text-sm shrink-0" style={{ background: pref.iconBg || "#4f46e5" }}>{pref.icon}</div>
-                      ) : (
-                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${isSelected ? (isDark ? "bg-indigo-700 text-white" : "bg-violet-600 text-white") : (isDark ? "bg-[#2d3348] text-[#8892a4]" : "bg-[#e8edf3] text-[#64748b]")}`}>
-                          {getInitials(ws.name)}
-                        </div>
-                      )}
-                      <span className={`text-[12.5px] font-medium truncate ${isSelected ? (isDark ? "text-indigo-300" : "text-violet-700") : T.text}`}>{ws.name}</span>
-                      <ChevronDown size={12} className={`${T.hint} transition-transform shrink-0 ${isExpanded ? "rotate-180" : ""}`} />
+                  <div className={`w-full rounded-xl transition-all flex items-center gap-1.5 pr-1.5 ${isSelected?(isDark?"bg-[#1e2235] border border-[#3d4266]":"bg-violet-50 border border-violet-200 shadow-sm"):`border border-transparent ${T.hover}`}`}>
+                    <button onClick={()=>toggleExpand(ws)} className="flex-1 flex items-center gap-2 px-2.5 py-2 text-left min-w-0">
+                      <div className="relative shrink-0">
+                        {pref.icon?(
+                          <div className="w-6 h-6 rounded-lg flex items-center justify-center text-sm" style={{background:pref.iconBg||"#4f46e5"}}>{pref.icon}</div>
+                        ):(
+                          <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold ${isSelected?(isDark?"bg-indigo-700 text-white":"bg-violet-600 text-white"):(isDark?"bg-[#2d3348] text-[#8892a4]":"bg-[#e8edf3] text-[#64748b]")}`}>
+                            {getInitials(ws.name)}
+                          </div>
+                        )}
+                        {hasNotif&&<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-violet-500 rounded-full border-2 border-current"/>}
+                      </div>
+                      <span className={`text-[12.5px] font-medium truncate ${isSelected?(isDark?"text-indigo-300":"text-violet-700"):T.text}`}>{ws.name}</span>
+                      <ChevronDown size={12} className={`${T.hint} transition-transform shrink-0 ${isExpanded?"rotate-180":""}`}/>
                     </button>
-                    {/* Star button */}
-                    <button onClick={(e) => toggleStar(ws.id, e)}
-                      className={`w-5 h-5 flex items-center justify-center rounded transition shrink-0 ${isStarred ? "text-yellow-400" : T.hint}`}>
-                      <Star size={11} fill={isStarred ? "currentColor" : "none"} />
+                    <button onClick={(e)=>toggleStar(ws.id,e)}
+                      className={`w-5 h-5 flex items-center justify-center rounded transition shrink-0 ${isStarred?"text-yellow-400":T.hint}`}>
+                      <Star size={11} fill={isStarred?"currentColor":"none"}/>
                     </button>
                   </div>
-                  {isExpanded && (
+                  {isExpanded&&(
                     <div className={`ml-3 mt-0.5 border-l ${T.border} pl-3 space-y-0.5 mb-1`}>
-                      {(workspacePages[ws.id] || []).map(p => (
-                        <button key={p.id} onClick={() => router.push(`/page/${p.id}`)}
+                      {(workspacePages[ws.id]||[]).map(p=>(
+                        <button key={p.id} onClick={()=>router.push(`/page/${p.id}`)}
                           className={`w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-left ${T.hover} transition`}>
-                          <FileText size={11} className={T.hint} />
+                          <FileText size={11} className={T.hint}/>
                           <span className={`text-[11.5px] ${T.muted} truncate`}>{p.title}</span>
                         </button>
                       ))}
-                      {(workspacePages[ws.id] || []).length === 0 && (
-                        <p className={`text-[11px] ${T.hint} px-2 py-1`}>No pages yet</p>
-                      )}
+                      {(workspacePages[ws.id]||[]).length===0&&<p className={`text-[11px] ${T.hint} px-2 py-1`}>No pages yet</p>}
                     </div>
                   )}
                 </div>
@@ -504,43 +484,47 @@ function DashboardPage() {
             })}
           </div>
         </div>
-
         <div className={`p-3 border-t ${T.border}`}>
           <button onClick={toggleTheme}
             className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[12.5px] ${T.muted} ${T.hover} transition`}>
-            {isDark ? <Sun size={14} /> : <Moon size={14} />}
-            {isDark ? "Light Mode" : "Dark Mode"}
+            {isDark?<Sun size={14}/>:<Moon size={14}/>}
+            {isDark?"Light Mode":"Dark Mode"}
           </button>
         </div>
       </div>
 
-      {/* ══ MAIN ══ */}
+      {/* MAIN */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Topbar */}
-        <div className={`h-[62px] ${T.topbar} border-b flex items-center px-5 gap-3 shrink-0 z-20 transition-colors duration-200`}>
-          <div className="flex-1 flex items-center gap-3">
-            <div className="relative flex-1 max-w-[440px]">
-              <Search size={14} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${T.hint}`} />
-              <input type="text" placeholder="Search everything…" value={searchTerm}
-                onChange={e => { setSearchTerm(e.target.value); setShowSearchDropdown(e.target.value.trim().length > 0); }}
-                onFocus={() => { if (searchTerm.trim()) setShowSearchDropdown(true); }}
-                onBlur={() => setTimeout(() => setShowSearchDropdown(false), 150)}
-                className={`w-full h-[38px] rounded-xl border pl-9 pr-4 text-[13px] focus:outline-none focus:border-violet-400 ${T.input} transition`} />
-              {showSearchDropdown && (
-                <div className={`absolute top-[44px] left-0 right-0 ${T.modal} border ${T.border} rounded-2xl shadow-2xl z-30 overflow-hidden max-h-[360px] overflow-y-auto`}>
-                  {globalSearch.spaces.length > 0 && (
+        {/* TOPBAR */}
+        <div className={`h-[62px] ${T.topbar} border-b flex items-center px-5 shrink-0 z-20 transition-colors duration-200`}>
+
+          {/* Left spacer */}
+          <div style={{minWidth:"160px"}}/>
+
+          {/* CENTER — search + create page button together */}
+          <div className="flex-1 flex items-center justify-center gap-3">
+            <div className="relative w-full max-w-[480px]">
+              <Search size={14} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${T.hint}`}/>
+              <input type="text" placeholder="Search spaces and pages…" value={searchTerm}
+                onChange={e=>{setSearchTerm(e.target.value);setShowSearchDropdown(e.target.value.trim().length>0);}}
+                onFocus={()=>{if(searchTerm.trim()) setShowSearchDropdown(true);}}
+                onBlur={()=>setTimeout(()=>setShowSearchDropdown(false),150)}
+                className={`w-full h-[40px] rounded-2xl border pl-9 pr-4 text-[13px] focus:outline-none focus:border-violet-400 ${T.input} transition`}/>
+              {showSearchDropdown&&(
+                <div className={`absolute top-[48px] left-0 right-0 ${T.modal} border ${T.border} rounded-2xl shadow-2xl z-30 overflow-hidden max-h-[360px] overflow-y-auto`}>
+                  {globalSearch.spaces.length>0&&(
                     <>
                       <div className={`px-4 py-2 text-[10px] font-bold tracking-widest ${T.hint} uppercase ${T.searchbg}`}>Spaces</div>
-                      {globalSearch.spaces.map(ws => {
-                        const p = getSpacePref(ws.id);
+                      {globalSearch.spaces.map(ws=>{
+                        const p=getSpacePref(ws.id);
                         return (
-                          <button key={ws.id} onClick={() => { selectWorkspace(ws); setSearchTerm(""); setShowSearchDropdown(false); }}
+                          <button key={ws.id} onClick={()=>{selectWorkspace(ws);setSearchTerm("");setShowSearchDropdown(false);}}
                             className={`w-full px-4 py-2.5 text-left ${T.hover} transition flex items-center gap-3`}>
-                            {p.icon ? (
-                              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0" style={{ background: p.iconBg || "#4f46e5" }}>{p.icon}</div>
-                            ) : (
-                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0 ${isDark ? "bg-[#2d3348] text-[#8892a4]" : "bg-[#e8edf3] text-[#64748b]"}`}>{getInitials(ws.name)}</div>
+                            {p.icon?(
+                              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0" style={{background:p.iconBg||"#4f46e5"}}>{p.icon}</div>
+                            ):(
+                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0 ${isDark?"bg-[#2d3348] text-[#8892a4]":"bg-[#e8edf3] text-[#64748b]"}`}>{getInitials(ws.name)}</div>
                             )}
                             <div className="min-w-0">
                               <div className={`text-[13px] font-medium ${T.text}`}>{ws.name}</div>
@@ -551,131 +535,185 @@ function DashboardPage() {
                       })}
                     </>
                   )}
-                  {globalSearch.pages.length > 0 && (
+                  {globalSearch.pages.length>0&&(
                     <>
                       <div className={`px-4 py-2 text-[10px] font-bold tracking-widest ${T.hint} uppercase ${T.searchbg} border-t ${T.border}`}>Pages</div>
-                      {globalSearch.pages.map(p => (
-                        <button key={p.id} onClick={() => { router.push(`/page/${p.id}`); setSearchTerm(""); setShowSearchDropdown(false); }}
+                      {globalSearch.pages.map(p=>(
+                        <button key={p.id} onClick={()=>{router.push(`/page/${p.id}`);setSearchTerm("");setShowSearchDropdown(false);}}
                           className={`w-full px-4 py-2.5 text-left ${T.hover} transition flex items-center gap-3`}>
-                          <FileText size={14} className="text-violet-400 shrink-0" />
+                          <FileText size={14} className="text-violet-400 shrink-0"/>
                           <div className="min-w-0">
                             <div className={`text-[13px] font-medium ${T.text}`}>{p.title}</div>
-                            <div className={`text-[11px] ${T.hint} truncate`}>{p.content?.replace(/<[^>]*>/g, "")}</div>
+                            <div className={`text-[11px] ${T.hint} truncate`}>{p.content?.replace(/<[^>]*>/g,"")}</div>
                           </div>
                         </button>
                       ))}
                     </>
                   )}
-                  {!globalSearch.spaces.length && !globalSearch.pages.length && (
+                  {!globalSearch.spaces.length&&!globalSearch.pages.length&&(
                     <div className={`px-4 py-6 text-center text-[13px] ${T.hint}`}>No results for &ldquo;{searchTerm}&rdquo;</div>
                   )}
                 </div>
               )}
             </div>
-            {selectedWorkspace && canEdit && (
-              <button onClick={() => setShowCreatePageModal(true)}
-                className="flex items-center gap-1.5 px-4 h-[38px] rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[13px] font-medium hover:opacity-90 transition shrink-0 shadow">
-                <Plus size={13} /> Create Page
+
+            {/* Create Page — right next to search */}
+            {selectedWorkspace&&canEdit&&(
+              <button onClick={()=>setShowCreatePageModal(true)}
+                className="flex items-center gap-1.5 px-4 h-[40px] rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[13px] font-medium hover:opacity-90 transition shrink-0 shadow whitespace-nowrap">
+                <Plus size={13}/> Create Page
               </button>
             )}
           </div>
-          <div className="flex items-center gap-1.5">
-            <button className={`w-8 h-8 rounded-xl border ${T.border} ${T.modal} flex items-center justify-center ${T.hover} transition`}>
-              <Bell size={14} className={T.muted} />
-            </button>
-            <button onClick={() => router.push(userRole === "admin" ? "/admin" : "/teams")}
-              className={`w-8 h-8 rounded-xl border ${T.border} ${T.modal} flex items-center justify-center ${T.hover} transition`}>
-              <Settings size={14} className={T.muted} />
+
+          {/* Right — actions */}
+          <div className="flex items-center gap-1.5 justify-end" style={{minWidth:"160px"}}>
+            <div className="relative" ref={notifRef}>
+              <button onClick={()=>setShowNotifications(!showNotifications)}
+                className={`relative w-9 h-9 rounded-xl border ${T.border} ${T.modal} flex items-center justify-center ${T.hover} transition`}>
+                <Bell size={15} className={totalNotifications>0?"text-violet-400":T.muted}/>
+                {totalNotifications>0&&(
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-violet-600 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg">
+                    {totalNotifications>99?"99+":totalNotifications}
+                  </span>
+                )}
+              </button>
+              {showNotifications&&(
+                <div className={`absolute top-[44px] right-0 w-[320px] ${T.modal} border ${T.border} rounded-2xl shadow-2xl z-50 overflow-hidden`}>
+                  <div className={`px-4 py-3 border-b ${T.border} flex items-center justify-between`}>
+                    <span className={`text-[14px] font-semibold ${T.text}`}>Notifications</span>
+                    {totalNotifications>0&&(
+                      <button onClick={markAllRead} className="text-[11px] text-violet-400 hover:text-violet-300 transition font-medium">Mark all read</button>
+                    )}
+                  </div>
+                  {notifications.length===0?(
+                    <div className="py-10 text-center">
+                      <Bell size={28} className={`mx-auto mb-3 ${T.hint} opacity-30`}/>
+                      <p className={`text-[13px] ${T.hint}`}>All caught up!</p>
+                      <p className={`text-[11px] ${T.hint} mt-1`}>No new updates in your spaces</p>
+                    </div>
+                  ):(
+                    <div className="max-h-[340px] overflow-y-auto">
+                      {notifications.map(n=>{
+                        const ws=workspaces.find(w=>w.id===n.workspaceId);
+                        const pref=ws?getSpacePref(ws.id):null;
+                        return (
+                          <button key={n.workspaceId}
+                            onClick={()=>{if(ws) selectWorkspace(ws); setShowNotifications(false);}}
+                            className={`w-full px-4 py-3 flex items-center gap-3 ${T.hover} transition border-b ${T.border} last:border-0`}>
+                            {pref?.icon?(
+                              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{background:pref.iconBg||"#4f46e5"}}>{pref.icon}</div>
+                            ):(
+                              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-gradient-to-br from-violet-600 to-indigo-700">
+                                <span className="text-white text-sm font-bold">{getInitials(n.workspaceName)}</span>
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0 text-left">
+                              <p className={`text-[13px] font-semibold ${T.text} truncate`}>{n.workspaceName}</p>
+                              <p className={`text-[11px] ${T.muted} mt-0.5`}>{n.count} new update{n.count>1?"s":""} since your last visit</p>
+                            </div>
+                            <span className="w-2.5 h-2.5 bg-violet-500 rounded-full shrink-0"/>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <button onClick={()=>router.push(userRole==="admin"?"/admin":"/teams")}
+              className={`w-9 h-9 rounded-xl border ${T.border} ${T.modal} flex items-center justify-center ${T.hover} transition`}>
+              <Settings size={14} className={T.muted}/>
             </button>
             <button onClick={logout}
-              className={`w-8 h-8 rounded-xl border ${isDark ? "border-red-900 hover:bg-red-900/30" : "border-red-200 hover:bg-red-50"} ${T.modal} flex items-center justify-center transition`}>
-              <LogOut size={14} className="text-red-400" />
+              className={`w-9 h-9 rounded-xl border ${isDark?"border-red-900 hover:bg-red-900/30":"border-red-200 hover:bg-red-50"} ${T.modal} flex items-center justify-center transition`}>
+              <LogOut size={14} className="text-red-400"/>
             </button>
           </div>
         </div>
 
-        {/* Content */}
+        {/* CONTENT */}
         <div className="flex-1 overflow-y-auto">
-          {selectedWorkspace && currentPref ? (
+          {selectedWorkspace&&currentPref?(
             <div>
               <div className="w-full h-[165px] relative" style={bannerStyle}>
-                <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom,transparent 55%,rgba(0,0,0,0.28))" }} />
+                <div className="absolute inset-0" style={{background:"linear-gradient(to bottom,transparent 55%,rgba(0,0,0,0.28))"}}/>
               </div>
               <div className="relative z-10 flex flex-col items-center -mt-[38px] pb-5 px-6">
-                {currentPref.icon ? (
+                {currentPref.icon?(
                   <div className="w-[72px] h-[72px] rounded-2xl flex items-center justify-center text-3xl shadow-xl border-[3px]"
-                    style={{ background: currentPref.iconBg || "#4f46e5", borderColor: isDark ? "#1a1d2e" : "white" }}>
+                    style={{background:currentPref.iconBg||"#4f46e5",borderColor:isDark?"#1a1d2e":"white"}}>
                     {currentPref.icon}
                   </div>
-                ) : (
+                ):(
                   <div className="w-[72px] h-[72px] rounded-2xl flex items-center justify-center shadow-xl border-[3px] bg-gradient-to-br from-violet-600 to-indigo-700"
-                    style={{ borderColor: isDark ? "#1a1d2e" : "white" }}>
+                    style={{borderColor:isDark?"#1a1d2e":"white"}}>
                     <span className="text-white text-[22px] font-bold">{getInitials(selectedWorkspace.name)}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-2.5 mt-3">
                   <h1 className={`text-[23px] font-bold tracking-tight ${T.text}`}>{selectedWorkspace.name}</h1>
-                  <button onClick={() => { setShowInviteModal(true); setInviteResult(null); setInviteEmail(""); }}
+                  <button onClick={()=>{setShowInviteModal(true);setInviteResult(null);setInviteEmail("");}}
                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-medium border ${T.border} ${T.modal} ${T.muted} ${T.hover} transition shadow-sm`}>
-                    <UserPlus size={11} /> Invite
+                    <UserPlus size={11}/> Invite
                   </button>
                 </div>
                 <p className={`mt-1.5 text-[13px] ${T.muted} text-center max-w-lg leading-relaxed`}>
-                  {selectedWorkspace.description || "No description — click Edit Space to add one."}
+                  {selectedWorkspace.description||"No description — click Edit Space to add one."}
                 </p>
                 <div className="flex items-center gap-2 mt-3">
-                  {canEdit && (
-                    <button onClick={() => setShowEditSpaceModal(true)}
+                  {canEdit&&(
+                    <button onClick={()=>setShowEditSpaceModal(true)}
                       className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border ${T.border} ${T.modal} text-[12.5px] ${T.muted} ${T.hover} transition shadow-sm`}>
-                      <Pencil size={12} /> Edit Space
+                      <Pencil size={12}/> Edit Space
                     </button>
                   )}
                   <button onClick={shareWorkspace}
                     className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border ${T.border} ${T.modal} text-[12.5px] ${T.muted} ${T.hover} transition shadow-sm`}>
-                    <Share2 size={12} />{shareCopied ? "Copied!" : "Share"}
+                    <Share2 size={12}/>{shareCopied?"Copied!":"Share"}
                   </button>
                 </div>
               </div>
-              <div className={`border-t ${T.border} mx-6`} />
+              <div className={`border-t ${T.border} mx-6`}/>
               <div className="px-6 py-5 max-w-[860px] mx-auto w-full">
                 <div className="flex items-center justify-between mb-4 gap-3">
                   <h2 className={`text-[15px] font-semibold ${T.text} shrink-0`}>
                     Pages <span className={`text-[13px] font-normal ${T.hint} ml-1`}>{pages.length}</span>
                   </h2>
                   <div className="relative max-w-[260px] w-full">
-                    <Search size={12} className={`absolute left-3 top-1/2 -translate-y-1/2 ${T.hint}`} />
+                    <Search size={12} className={`absolute left-3 top-1/2 -translate-y-1/2 ${T.hint}`}/>
                     <input type="text" placeholder={`Search in ${selectedWorkspace.name}…`}
-                      value={spaceSearch} onChange={e => setSpaceSearch(e.target.value)}
-                      className={`w-full h-[33px] rounded-xl border pl-8 pr-3 text-[12.5px] focus:outline-none focus:border-violet-400 ${T.input} transition`} />
+                      value={spaceSearch} onChange={e=>setSpaceSearch(e.target.value)}
+                      className={`w-full h-[33px] rounded-xl border pl-8 pr-3 text-[12.5px] focus:outline-none focus:border-violet-400 ${T.input} transition`}/>
                   </div>
                 </div>
                 <div className="space-y-2.5">
-                  {spaceFilteredPages.map(p => (
-                    <button key={p.id} onClick={() => router.push(`/page/${p.id}`)}
+                  {spaceFilteredPages.map(p=>(
+                    <button key={p.id} onClick={()=>router.push(`/page/${p.id}`)}
                       className={`w-full ${T.card} border ${T.border} rounded-2xl px-5 py-3.5 text-left hover:border-violet-400 hover:shadow-md transition-all group`}>
                       <div className="flex items-center gap-4">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isDark ? "bg-violet-900/40" : "bg-violet-50"}`}>
-                          <FileText size={15} className="text-violet-500" />
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isDark?"bg-violet-900/40":"bg-violet-50"}`}>
+                          <FileText size={15} className="text-violet-500"/>
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className={`text-[13.5px] font-semibold ${T.text} truncate group-hover:text-violet-500 transition`}>{p.title}</h3>
-                          <p className={`mt-0.5 text-[12px] ${T.hint} line-clamp-1`}>{p.content?.replace(/<[^>]*>/g, "") || "No content yet"}</p>
+                          <p className={`mt-0.5 text-[12px] ${T.hint} line-clamp-1`}>{p.content?.replace(/<[^>]*>/g,"")||"No content yet"}</p>
                         </div>
                       </div>
                     </button>
                   ))}
-                  {spaceFilteredPages.length === 0 && spaceSearch && (
+                  {spaceFilteredPages.length===0&&spaceSearch&&(
                     <div className={`text-center py-12 ${T.hint}`}>
-                      <Search size={26} className="mx-auto mb-3 opacity-30" />
+                      <Search size={26} className="mx-auto mb-3 opacity-30"/>
                       <p className="text-[13px]">No pages match &ldquo;{spaceSearch}&rdquo;</p>
                     </div>
                   )}
-                  {pages.length === 0 && !spaceSearch && (
+                  {pages.length===0&&!spaceSearch&&(
                     <div className={`text-center py-14 ${T.hint}`}>
-                      <FileText size={28} className="mx-auto mb-3 opacity-30" />
+                      <FileText size={28} className="mx-auto mb-3 opacity-30"/>
                       <p className="text-[13px] mb-3">No pages in this space yet</p>
-                      {canEdit && (
-                        <button onClick={() => setShowCreatePageModal(true)}
+                      {canEdit&&(
+                        <button onClick={()=>setShowCreatePageModal(true)}
                           className="text-[13px] text-violet-500 hover:text-violet-600 font-medium transition">
                           + Create the first page
                         </button>
@@ -685,11 +723,11 @@ function DashboardPage() {
                 </div>
               </div>
             </div>
-          ) : (
+          ):(
             <div className="h-full flex flex-col">
               <div className="w-full h-[210px] relative flex items-end"
-                style={{ background: "linear-gradient(135deg,#1e1b4b 0%,#4f46e5 40%,#7c3aed 70%,#a855f7 100%)" }}>
-                <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 70% 50%,rgba(99,102,241,0.35),transparent 70%)" }} />
+                style={{background:"linear-gradient(135deg,#1e1b4b 0%,#4f46e5 40%,#7c3aed 70%,#a855f7 100%)"}}>
+                <div className="absolute inset-0" style={{background:"radial-gradient(ellipse at 70% 50%,rgba(99,102,241,0.35),transparent 70%)"}}/>
                 <div className="relative z-10 px-10 pb-8">
                   <h1 className="text-[30px] font-bold text-white leading-tight">Welcome to OneSpace 👋</h1>
                   <p className="text-[14px] text-indigo-200 mt-1">Your team knowledge, organised and accessible.</p>
@@ -699,17 +737,17 @@ function DashboardPage() {
                 <p className={`text-[13.5px] ${T.muted} mb-5`}>Get started by creating your first space or ask an admin to invite you.</p>
                 <div className="grid grid-cols-3 gap-4 mb-7">
                   {[
-                    { icon: "🗂️", title: "Create Spaces", desc: "Organise work into focused spaces for each team or project.", action: () => setShowCreateSpaceModal(true), cta: "Create a Space" },
-                    { icon: "📝", title: "Write Pages", desc: "Document processes, runbooks and knowledge with rich content.", action: null, cta: null },
-                    { icon: "👥", title: "Collaborate", desc: "Invite teammates, set roles and keep everyone on the same page.", action: null, cta: null },
-                  ].map(card => (
+                    {icon:"🗂️",title:"Create Spaces",desc:"Organise work into focused spaces for each team or project.",action:()=>setShowCreateSpaceModal(true),cta:"Create a Space"},
+                    {icon:"📝",title:"Write Pages",desc:"Document processes, runbooks and knowledge with rich content.",action:null,cta:null},
+                    {icon:"👥",title:"Collaborate",desc:"Invite teammates, set roles and keep everyone on the same page.",action:null,cta:null},
+                  ].map(card=>(
                     <div key={card.title} className={`${T.card} border ${T.border} rounded-2xl p-5 flex flex-col gap-3`}>
                       <div className="text-3xl">{card.icon}</div>
                       <div>
                         <h3 className={`text-[14px] font-semibold ${T.text}`}>{card.title}</h3>
                         <p className={`text-[12.5px] ${T.muted} mt-1 leading-relaxed`}>{card.desc}</p>
                       </div>
-                      {card.action && (
+                      {card.action&&(
                         <button onClick={card.action} className="mt-auto text-[12.5px] font-medium text-violet-500 hover:text-violet-600 transition text-left">
                           {card.cta} →
                         </button>
@@ -718,12 +756,12 @@ function DashboardPage() {
                   ))}
                 </div>
                 <div className="flex gap-3">
-                  <button onClick={() => setShowCreateSpaceModal(true)}
+                  <button onClick={()=>setShowCreateSpaceModal(true)}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[13.5px] font-medium hover:opacity-90 transition shadow">
-                    <Plus size={14} /> Create your first Space
+                    <Plus size={14}/> Create your first Space
                   </button>
                   <button className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border ${T.border} ${T.modal} text-[13.5px] ${T.muted} ${T.hover} transition`}>
-                    <Users size={14} /> Join a Space
+                    <Users size={14}/> Join a Space
                   </button>
                 </div>
               </div>
@@ -732,158 +770,168 @@ function DashboardPage() {
         </div>
       </div>
 
-      {/* ══ MODALS ══ */}
+      {/* MODALS */}
 
-      {/* Create Space */}
-      {showCreateSpaceModal && (
+      {showCreateSpaceModal&&(
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className={`${T.modal} rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 border ${T.border}`}>
             <div className="flex items-center justify-between mb-5">
               <h2 className={`text-[16px] font-semibold ${T.text}`}>Create Space</h2>
-              <button onClick={() => setShowCreateSpaceModal(false)} className={T.hint}><X size={17} /></button>
+              <button onClick={()=>setShowCreateSpaceModal(false)} className={T.hint}><X size={17}/></button>
             </div>
             <div className="space-y-4">
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Name</label>
-                <input type="text" value={spaceName} onChange={e => setSpaceName(e.target.value)} placeholder="e.g. DevOps, HR, IT"
-                  className={`w-full border rounded-xl px-4 py-2.5 text-[13.5px] focus:outline-none focus:border-violet-400 ${T.input}`} />
+                <input type="text" value={spaceName} onChange={e=>setSpaceName(e.target.value)} placeholder="e.g. DevOps, HR, IT"
+                  className={`w-full border rounded-xl px-4 py-2.5 text-[13.5px] focus:outline-none focus:border-violet-400 ${T.input}`}/>
               </div>
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Description</label>
-                <textarea value={spaceDescription} onChange={e => setSpaceDescription(e.target.value)} rows={3} placeholder="What is this space for?"
-                  className={`w-full border rounded-xl px-4 py-2.5 text-[13.5px] focus:outline-none focus:border-violet-400 ${T.input} resize-none`} />
+                <textarea value={spaceDescription} onChange={e=>setSpaceDescription(e.target.value)} rows={3} placeholder="What is this space for?"
+                  className={`w-full border rounded-xl px-4 py-2.5 text-[13.5px] focus:outline-none focus:border-violet-400 ${T.input} resize-none`}/>
               </div>
             </div>
             <div className="flex justify-end gap-2.5 mt-5">
-              <button onClick={() => setShowCreateSpaceModal(false)}
+              <button onClick={()=>setShowCreateSpaceModal(false)}
                 className={`px-4 py-2 text-[13px] ${T.muted} border ${T.border} rounded-xl ${T.hover} transition`}>Cancel</button>
               <button onClick={createWorkspace} disabled={creatingSpace}
                 className="px-5 py-2 text-[13px] font-medium bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl hover:opacity-90 transition disabled:opacity-50">
-                {creatingSpace ? "Creating…" : "Create Space"}
+                {creatingSpace?"Creating…":"Create Space"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Create Page — with Rich Editor */}
-      {showCreatePageModal && (
+      {showCreatePageModal&&(
         <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 backdrop-blur-sm pt-10 pb-10 overflow-y-auto">
           <div className={`${T.modal} rounded-2xl shadow-2xl w-full max-w-3xl mx-4 p-6 border ${T.border}`}>
             <div className="flex items-center justify-between mb-5">
               <h2 className={`text-[16px] font-semibold ${T.text}`}>Create Page</h2>
-              <button onClick={() => setShowCreatePageModal(false)} className={T.hint}><X size={17} /></button>
+              <button onClick={()=>setShowCreatePageModal(false)} className={T.hint}><X size={17}/></button>
             </div>
             <div className="space-y-4">
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Title</label>
-                <input type="text" value={pageTitle} onChange={e => setPageTitle(e.target.value)} placeholder="Page title"
-                  className={`w-full border rounded-xl px-4 py-2.5 text-[14px] font-semibold focus:outline-none focus:border-violet-400 ${T.input}`} />
+                <input type="text" value={pageTitle} onChange={e=>setPageTitle(e.target.value)} placeholder="Page title"
+                  className={`w-full border rounded-xl px-4 py-2.5 text-[14px] font-semibold focus:outline-none focus:border-violet-400 ${T.input}`}/>
               </div>
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-2`}>Content</label>
-                <RichTextEditor content={pageContent} onChange={setPageContent} isDark={isDark} minHeight="220px" />
+                <RichTextEditor content={pageContent} onChange={setPageContent} isDark={isDark} minHeight="220px"/>
               </div>
             </div>
             <div className="flex justify-end gap-2.5 mt-5">
-              <button onClick={() => setShowCreatePageModal(false)}
+              <button onClick={()=>setShowCreatePageModal(false)}
                 className={`px-4 py-2 text-[13px] ${T.muted} border ${T.border} rounded-xl ${T.hover} transition`}>Cancel</button>
-              <button onClick={createPage} disabled={creatingPage || !pageTitle.trim()}
+              <button onClick={createPage} disabled={creatingPage||!pageTitle.trim()}
                 className="px-5 py-2 text-[13px] font-medium bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl hover:opacity-90 transition disabled:opacity-50">
-                {creatingPage ? "Creating…" : "Create Page"}
+                {creatingPage?"Creating…":"Create Page"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Edit Space */}
-      {showEditSpaceModal && (
+      {showEditSpaceModal&&(
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className={`${T.modal} rounded-2xl shadow-2xl w-full max-w-2xl mx-4 p-6 border ${T.border} max-h-[90vh] overflow-y-auto`}>
             <div className="flex items-center justify-between mb-5">
               <h2 className={`text-[16px] font-semibold ${T.text}`}>Edit Space</h2>
-              <button onClick={() => setShowEditSpaceModal(false)} className={T.hint}><X size={17} /></button>
+              <button onClick={()=>setShowEditSpaceModal(false)} className={T.hint}><X size={17}/></button>
             </div>
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Name</label>
-                  <input value={editSpaceName} onChange={e => setEditSpaceName(e.target.value)}
-                    className={`w-full border rounded-xl px-3.5 py-2 text-[13px] focus:outline-none focus:border-violet-400 ${T.input}`} />
+                  <input value={editSpaceName} onChange={e=>setEditSpaceName(e.target.value)}
+                    className={`w-full border rounded-xl px-3.5 py-2 text-[13px] focus:outline-none focus:border-violet-400 ${T.input}`}/>
                 </div>
                 <div>
                   <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Description</label>
-                  <input value={editSpaceDescription} onChange={e => setEditSpaceDescription(e.target.value)}
-                    className={`w-full border rounded-xl px-3.5 py-2 text-[13px] focus:outline-none focus:border-violet-400 ${T.input}`} />
+                  <input value={editSpaceDescription} onChange={e=>setEditSpaceDescription(e.target.value)}
+                    className={`w-full border rounded-xl px-3.5 py-2 text-[13px] focus:outline-none focus:border-violet-400 ${T.input}`}/>
                 </div>
               </div>
+
+              {/* ICON PICKER */}
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-3">
                   <label className={`text-[12px] font-medium ${T.muted}`}>Space Icon <span className={`${T.hint} font-normal`}>(optional)</span></label>
-                  {editIconIndex !== null && (
-                    <button onClick={() => setEditIconIndex(null)} className={`text-[11px] ${T.hint} hover:text-red-400 transition flex items-center gap-1`}>
-                      <X size={10} /> Remove
+                  {editIconIndex!==null&&(
+                    <button onClick={()=>setEditIconIndex(null)} className={`text-[11px] ${T.hint} hover:text-red-400 transition flex items-center gap-1`}>
+                      <X size={10}/> Remove
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-8 gap-1.5">
-                  {SPACE_ICONS.map((icon, i) => (
-                    <button key={i} onClick={() => setEditIconIndex(editIconIndex === i ? null : i)} title={icon.label}
-                      className={`relative w-full aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 text-base border-2 transition hover:scale-105 ${editIconIndex === i ? "border-violet-500 scale-105 shadow-lg" : "border-transparent opacity-75 hover:opacity-100"}`}
-                      style={{ background: icon.bg }}>
-                      <span>{icon.emoji}</span>
-                      <span className="text-[7px] text-white/75 font-medium leading-none">{icon.label}</span>
-                      {editIconIndex === i && <Check size={9} className="absolute top-0.5 right-0.5 text-white drop-shadow" />}
+                <div className="grid grid-cols-4 gap-3">
+                  {SPACE_ICONS.map((icon,i)=>(
+                    <button key={i} onClick={()=>setEditIconIndex(editIconIndex===i?null:i)}
+                      className={`relative rounded-2xl flex flex-col items-center justify-center gap-2 py-4 border-2 transition-all duration-200 hover:scale-105 hover:shadow-xl ${
+                        editIconIndex===i
+                          ? "border-white/80 scale-105 shadow-xl ring-2 ring-violet-500/50"
+                          : "border-transparent hover:border-white/20 opacity-80 hover:opacity-100"
+                      }`}
+                      style={{background:icon.bg}}>
+                      <span style={{fontSize:"36px",lineHeight:"1",filter:"drop-shadow(0 2px 6px rgba(0,0,0,0.4))"}}>{icon.emoji}</span>
+                      <span style={{fontSize:"10px",color:"rgba(255,255,255,0.95)",fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase" as const}}>{icon.label}</span>
+                      {editIconIndex===i&&(
+                        <div className="absolute top-2 right-2 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-lg">
+                          <Check size={11} className="text-violet-600"/>
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* Banner */}
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-2`}>Banner</label>
                 <p className={`text-[11px] ${T.hint} mb-1.5 uppercase tracking-wider font-semibold`}>Photos</p>
                 <div className="grid grid-cols-5 gap-2 mb-3">
-                  {IMAGE_WALLPAPERS.map(wp => (
-                    <button key={wp.id} onClick={() => setEditWallpaper(wp.id)} title={wp.name}
-                      className={`h-14 rounded-xl border-2 transition overflow-hidden ${editWallpaper === wp.id ? "border-violet-500 scale-105 shadow-lg" : "border-transparent hover:scale-105"}`}
+                  {IMAGE_WALLPAPERS.map(wp=>(
+                    <button key={wp.id} onClick={()=>setEditWallpaper(wp.id)} title={wp.name}
+                      className={`h-14 rounded-xl border-2 transition overflow-hidden ${editWallpaper===wp.id?"border-violet-500 scale-105 shadow-lg":"border-transparent hover:scale-105"}`}
                       style={wp.style}>
-                      {editWallpaper === wp.id && <div className="w-full h-full flex items-center justify-center bg-black/20"><Check size={14} className="text-white drop-shadow" /></div>}
+                      {editWallpaper===wp.id&&<div className="w-full h-full flex items-center justify-center bg-black/20"><Check size={14} className="text-white drop-shadow"/></div>}
                     </button>
                   ))}
                 </div>
                 <p className={`text-[11px] ${T.hint} mb-1.5 uppercase tracking-wider font-semibold`}>Gradients</p>
                 <div className="grid grid-cols-6 gap-2">
-                  {GRADIENT_WALLPAPERS.map(wp => (
-                    <button key={wp.id} onClick={() => setEditWallpaper(wp.id)} title={wp.name}
-                      className={`h-9 rounded-xl border-2 transition ${editWallpaper === wp.id ? "border-violet-500 scale-105 shadow-lg" : "border-transparent hover:scale-105"}`}
+                  {GRADIENT_WALLPAPERS.map(wp=>(
+                    <button key={wp.id} onClick={()=>setEditWallpaper(wp.id)} title={wp.name}
+                      className={`h-9 rounded-xl border-2 transition ${editWallpaper===wp.id?"border-violet-500 scale-105 shadow-lg":"border-transparent hover:scale-105"}`}
                       style={wp.style}>
-                      {editWallpaper === wp.id && <div className="w-full h-full flex items-center justify-center"><Check size={12} className="text-white drop-shadow" /></div>}
+                      {editWallpaper===wp.id&&<div className="w-full h-full flex items-center justify-center"><Check size={12} className="text-white drop-shadow"/></div>}
                     </button>
                   ))}
                 </div>
               </div>
+
               {/* Preview */}
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-2`}>Preview</label>
-                <div className={`rounded-xl overflow-hidden border ${T.border}`}>
-                  <div className="h-14 relative" style={getWallpaperStyle(editWallpaper)}>
-                    <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom,transparent 55%,rgba(0,0,0,0.28))" }} />
+                <div className={`rounded-2xl overflow-hidden border ${T.border} shadow-lg`}>
+                  <div className="h-28 relative" style={getWallpaperStyle(editWallpaper)}>
+                    <div className="absolute inset-0" style={{background:"linear-gradient(to bottom,transparent 40%,rgba(0,0,0,0.35))"}}/>
                   </div>
-                  <div className={`px-4 py-3 ${T.card} flex items-center gap-3`}>
-                    {editIconIndex !== null ? (
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl -mt-6 shadow-lg border-2"
-                        style={{ background: SPACE_ICONS[editIconIndex].bg, borderColor: isDark ? "#1a1d2e" : "white" }}>
-                        {SPACE_ICONS[editIconIndex].emoji}
+                  <div className={`px-5 py-4 ${T.card} flex items-center gap-4`}>
+                    {editIconIndex!==null?(
+                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center -mt-10 shadow-2xl border-4 shrink-0"
+                        style={{background:SPACE_ICONS[editIconIndex].bg,borderColor:isDark?"#1a1d2e":"white"}}>
+                        <span style={{fontSize:"32px",filter:"drop-shadow(0 2px 4px rgba(0,0,0,0.3))"}}>{SPACE_ICONS[editIconIndex].emoji}</span>
                       </div>
-                    ) : (
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center -mt-6 shadow-lg border-2 bg-gradient-to-br from-violet-600 to-indigo-700"
-                        style={{ borderColor: isDark ? "#1a1d2e" : "white" }}>
-                        <span className="text-white text-sm font-bold">{getInitials(editSpaceName || "SP")}</span>
+                    ):(
+                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center -mt-10 shadow-2xl border-4 bg-gradient-to-br from-violet-600 to-indigo-700 shrink-0"
+                        style={{borderColor:isDark?"#1a1d2e":"white"}}>
+                        <span className="text-white text-2xl font-bold">{getInitials(editSpaceName||"SP")}</span>
                       </div>
                     )}
-                    <div className="mt-1">
-                      <div className={`text-[13px] font-semibold ${T.text}`}>{editSpaceName || "Space Name"}</div>
-                      <div className={`text-[11px] ${T.hint}`}>{editIconIndex !== null ? SPACE_ICONS[editIconIndex].label : "No icon"}</div>
+                    <div className="mt-2">
+                      <div className={`text-[16px] font-bold ${T.text}`}>{editSpaceName||"Space Name"}</div>
+                      <div className={`text-[12px] ${T.hint} mt-0.5`}>{editIconIndex!==null?SPACE_ICONS[editIconIndex].label:"No icon selected"}</div>
                     </div>
                   </div>
                 </div>
@@ -892,14 +940,14 @@ function DashboardPage() {
             <div className="flex items-center justify-between mt-5">
               <button onClick={deleteSpace} disabled={deletingSpace}
                 className="flex items-center gap-1.5 px-4 py-2 text-[13px] text-red-400 border border-red-900/40 rounded-xl hover:bg-red-900/20 transition disabled:opacity-50">
-                <Trash2 size={13} /> {deletingSpace ? "Deleting…" : "Delete Space"}
+                <Trash2 size={13}/> {deletingSpace?"Deleting…":"Delete Space"}
               </button>
               <div className="flex gap-2.5">
-                <button onClick={() => setShowEditSpaceModal(false)}
+                <button onClick={()=>setShowEditSpaceModal(false)}
                   className={`px-4 py-2 text-[13px] ${T.muted} border ${T.border} rounded-xl ${T.hover} transition`}>Cancel</button>
                 <button onClick={saveWorkspace} disabled={savingSpace}
                   className="px-5 py-2 text-[13px] font-medium bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl hover:opacity-90 transition disabled:opacity-50">
-                  {savingSpace ? "Saving…" : "Save Changes"}
+                  {savingSpace?"Saving…":"Save Changes"}
                 </button>
               </div>
             </div>
@@ -907,8 +955,7 @@ function DashboardPage() {
         </div>
       )}
 
-      {/* Invite */}
-      {showInviteModal && (
+      {showInviteModal&&(
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className={`${T.modal} rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 border ${T.border}`}>
             <div className="flex items-center justify-between mb-5">
@@ -916,46 +963,46 @@ function DashboardPage() {
                 <h2 className={`text-[16px] font-semibold ${T.text}`}>Invite to {selectedWorkspace?.name}</h2>
                 <p className={`text-[12px] ${T.hint} mt-0.5`}>An email invitation will be sent</p>
               </div>
-              <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className={T.hint}><X size={17} /></button>
+              <button onClick={()=>{setShowInviteModal(false);setInviteResult(null);}} className={T.hint}><X size={17}/></button>
             </div>
-            {inviteResult && (
-              <div className={`mb-4 px-4 py-3 rounded-xl text-[13px] ${inviteResult.type === "success" ? (isDark ? "bg-green-900/30 border border-green-700/40 text-green-300" : "bg-green-50 border border-green-200 text-green-700") : (isDark ? "bg-red-900/30 border border-red-700/40 text-red-300" : "bg-red-50 border border-red-200 text-red-700")}`}>
-                {inviteResult.type === "success" ? "✓ " : "✕ "}{inviteResult.message}
+            {inviteResult&&(
+              <div className={`mb-4 px-4 py-3 rounded-xl text-[13px] ${inviteResult.type==="success"?(isDark?"bg-green-900/30 border border-green-700/40 text-green-300":"bg-green-50 border border-green-200 text-green-700"):(isDark?"bg-red-900/30 border border-red-700/40 text-red-300":"bg-red-50 border border-red-200 text-red-700")}`}>
+                {inviteResult.type==="success"?"✓ ":"✕ "}{inviteResult.message}
               </div>
             )}
             <div className="space-y-4">
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-1.5`}>Email address</label>
-                <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="colleague@company.com"
-                  className={`w-full border rounded-xl px-4 py-2.5 text-[13.5px] focus:outline-none focus:border-violet-400 ${T.input}`} />
+                <input type="email" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="colleague@company.com"
+                  className={`w-full border rounded-xl px-4 py-2.5 text-[13.5px] focus:outline-none focus:border-violet-400 ${T.input}`}/>
               </div>
               <div>
                 <label className={`block text-[12px] font-medium ${T.muted} mb-2`}>Role</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {[{value:"viewer",label:"Viewer",desc:"Can read"},{value:"editor",label:"Editor",desc:"Can edit"},{value:"admin",label:"Admin",desc:"Full access"}].map(r => (
-                    <button key={r.value} onClick={() => setInviteRole(r.value)}
-                      className={`p-3 rounded-xl border-2 text-left transition ${inviteRole === r.value ? "border-violet-500 " + (isDark ? "bg-violet-900/30" : "bg-violet-50") : "border-transparent " + T.card + " " + T.hover}`}>
+                  {[{value:"viewer",label:"Viewer",desc:"Can read"},{value:"editor",label:"Editor",desc:"Can edit"},{value:"admin",label:"Admin",desc:"Full access"}].map(r=>(
+                    <button key={r.value} onClick={()=>setInviteRole(r.value)}
+                      className={`p-3 rounded-xl border-2 text-left transition ${inviteRole===r.value?"border-violet-500 "+(isDark?"bg-violet-900/30":"bg-violet-50"):"border-transparent "+T.card+" "+T.hover}`}>
                       <div className={`text-[12.5px] font-semibold ${T.text}`}>{r.label}</div>
                       <div className={`text-[11px] ${T.hint}`}>{r.desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
-              <div className={`p-3 rounded-xl ${isDark ? "bg-blue-950/50 border border-blue-900/40" : "bg-blue-50 border border-blue-100"}`}>
-                <p className={`text-[12px] ${isDark ? "text-blue-300" : "text-blue-600"}`}>
+              <div className={`p-3 rounded-xl ${isDark?"bg-blue-950/50 border border-blue-900/40":"bg-blue-50 border border-blue-100"}`}>
+                <p className={`text-[12px] ${isDark?"text-blue-300":"text-blue-600"}`}>
                   💡 Existing users will be added instantly. New users will receive a registration email.
                 </p>
               </div>
             </div>
             <div className="flex justify-end gap-2.5 mt-5">
-              <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }}
+              <button onClick={()=>{setShowInviteModal(false);setInviteResult(null);}}
                 className={`px-4 py-2 text-[13px] ${T.muted} border ${T.border} rounded-xl ${T.hover} transition`}>
-                {inviteResult?.type === "success" ? "Close" : "Cancel"}
+                {inviteResult?.type==="success"?"Close":"Cancel"}
               </button>
-              {inviteResult?.type !== "success" && (
-                <button onClick={sendInvite} disabled={inviteLoading || !inviteEmail.trim()}
+              {inviteResult?.type!=="success"&&(
+                <button onClick={sendInvite} disabled={inviteLoading||!inviteEmail.trim()}
                   className="px-5 py-2 text-[13px] font-medium bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl hover:opacity-90 transition disabled:opacity-50 flex items-center gap-2">
-                  <UserPlus size={13} />{inviteLoading ? "Sending…" : "Send Invite"}
+                  <UserPlus size={13}/>{inviteLoading?"Sending…":"Send Invite"}
                 </button>
               )}
             </div>
@@ -971,12 +1018,12 @@ export default function Page() {
     <Suspense fallback={
       <div className="flex items-center justify-center h-screen bg-[#0d0f18]">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+          <div className="w-8 h-8 rounded-full border-2 border-violet-500 border-t-transparent animate-spin"/>
           <p className="text-[13px] text-slate-400">Loading OneSpace…</p>
         </div>
       </div>
     }>
-      <DashboardPage />
+      <DashboardPage/>
     </Suspense>
   );
 }

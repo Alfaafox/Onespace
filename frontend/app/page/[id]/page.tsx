@@ -88,14 +88,14 @@ export default function PageView() {
 
   const fetchPage = async () => {
     try {
-      const res = await axios.get(`http://192.168.11.69:5000/pages/${pageId}`, { headers: authHeaders() });
+      const res = await axios.get(`http://localhost:5000/pages/${pageId}`, { headers: authHeaders() });
       setPage(res.data);
     } catch (err) { console.error(err); }
   };
 
   const fetchAttachments = async () => {
     try {
-      const res = await axios.get(`http://192.168.11.69:5000/attachments/page/${pageId}`, { headers: authHeaders() });
+      const res = await axios.get(`http://localhost:5000/attachments/page/${pageId}`, { headers: authHeaders() });
       setAttachments(res.data);
     } catch (err) { console.error(err); }
   };
@@ -103,7 +103,7 @@ export default function PageView() {
   const downloadFile = async (filePath: string, fileName: string) => {
     try {
       const response = await axios.get(
-        `http://192.168.11.69:5000/uploads/${filePath}`,
+        `http://localhost:5000/uploads/${filePath}`,
         {
           responseType: "blob",
           headers: authHeaders(),
@@ -142,7 +142,7 @@ export default function PageView() {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("page_id", String(pageId));
-        await axios.post("http://192.168.11.69:5000/attachments/upload", formData, {
+        await axios.post("http://localhost:5000/attachments/upload", formData, {
           headers: { ...authHeaders(), "Content-Type": "multipart/form-data" },
         });
         setUploadProgress(Math.round(((i + 1) / selectedFiles.length) * 100));
@@ -158,7 +158,7 @@ export default function PageView() {
     if (!window.confirm(`Delete "${fileName}"?`)) return;
     try {
       setDeletingAttachId(id);
-      await axios.delete(`http://192.168.11.69:5000/attachments/${id}`, { headers: authHeaders() });
+      await axios.delete(`http://localhost:5000/attachments/${id}`, { headers: authHeaders() });
       setAttachments(p => p.filter(a => a.id !== id));
     } catch (err: any) {
       alert(err?.response?.data?.error || "Failed to delete file");
@@ -169,7 +169,7 @@ export default function PageView() {
     if (!pageId) return;
     try {
       setSavingPage(true);
-      await axios.put(`http://192.168.11.69:5000/pages/${pageId}`,
+      await axios.put(`http://localhost:5000/pages/${pageId}`,
         { title: editTitle.trim() || page?.title, content: editContent },
         { headers: authHeaders() }
       );
@@ -183,7 +183,7 @@ export default function PageView() {
     if (!pageId) return;
     try {
       setDeletingPage(true);
-      const res = await axios.delete(`http://192.168.11.69:5000/pages/${pageId}`, { headers: authHeaders() });
+      const res = await axios.delete(`http://localhost:5000/pages/${pageId}`, { headers: authHeaders() });
       router.push(`/dashboard?workspace=${res.data.workspace_id || page?.workspace_id}`);
     } catch (err: any) {
       alert(err?.response?.data?.error || "Failed to delete page");
@@ -378,7 +378,7 @@ export default function PageView() {
                         </div>
                         {/* Action buttons */}
                         <div style={{ display:"flex", gap:"4px" }}>
-                          <a href={`http://192.168.11.69:5000/uploads/${file.file_path}`} target="_blank" rel="noreferrer"
+                          <a href={`http://localhost:5000/uploads/${file.file_path}`} target="_blank" rel="noreferrer"
                             style={{ flex:1, height:"26px", borderRadius:"6px", border:`1px solid ${C.border}`, background:C.card, color:C.muted, textDecoration:"none", display:"flex", alignItems:"center", justifyContent:"center", gap:"4px", fontSize:"11px" }}>
                             <ExternalLink size={10}/> Open
                           </a>

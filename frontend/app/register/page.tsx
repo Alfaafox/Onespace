@@ -40,7 +40,7 @@ export default function RegisterPage() {
     if (password.length < 6) { setError("Password must be at least 6 characters"); return; }
     try {
       setLoading(true);
-      const res = await axios.post("http://192.168.11.69:5000/register", { username, email, password });
+      const res = await axios.post("http://localhost:5000/register", { username, email, password });
       setSuccess(res.data.message);
       if (res.data.verifyUrl) setDevLink(res.data.verifyUrl);
     } catch (err: any) {

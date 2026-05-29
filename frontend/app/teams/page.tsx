@@ -54,14 +54,14 @@ export default function TeamsPage() {
 
   const fetchTeams = async () => {
     try {
-      const res = await axios.get("http://192.168.11.69:5000/teams", { headers: authHeaders() });
+      const res = await axios.get("http://localhost:5000/teams", { headers: authHeaders() });
       setTeams(res.data);
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
   const fetchAllWorkspaces = async () => {
     try {
-      const res = await axios.get("http://192.168.11.69:5000/workspaces", { headers: authHeaders() });
+      const res = await axios.get("http://localhost:5000/workspaces", { headers: authHeaders() });
       setAllWorkspaces(res.data);
     } catch {}
   };
@@ -69,8 +69,8 @@ export default function TeamsPage() {
   const selectTeam = async (team: Team) => {
     setSelectedTeam(team); setTab("members");
     const [membRes, wsRes] = await Promise.all([
-      axios.get(`http://192.168.11.69:5000/teams/${team.id}/members`, { headers: authHeaders() }),
-      axios.get(`http://192.168.11.69:5000/teams/${team.id}/workspaces`, { headers: authHeaders() }),
+      axios.get(`http://localhost:5000/teams/${team.id}/members`, { headers: authHeaders() }),
+      axios.get(`http://localhost:5000/teams/${team.id}/workspaces`, { headers: authHeaders() }),
     ]);
     setMembers(membRes.data);
     setTeamWorkspaces(wsRes.data);
@@ -80,7 +80,7 @@ export default function TeamsPage() {
     if (!newTeamName.trim()) return;
     try {
       setCreating(true);
-      await axios.post("http://192.168.11.69:5000/teams", { name: newTeamName.trim(), description: newTeamDesc.trim() }, { headers: authHeaders() });
+      await axios.post("http://localhost:5000/teams", { name: newTeamName.trim(), description: newTeamDesc.trim() }, { headers: authHeaders() });
       setShowCreateModal(false); setNewTeamName(""); setNewTeamDesc("");
       fetchTeams();
     } catch (err: any) { alert(err?.response?.data?.error || "Failed to create team"); }
@@ -90,7 +90,7 @@ export default function TeamsPage() {
   const deleteTeam = async (teamId: number) => {
     if (!window.confirm("Delete this team? Members will lose access to team spaces.")) return;
     try {
-      await axios.delete(`http://192.168.11.69:5000/teams/${teamId}`, { headers: authHeaders() });
+      await axios.delete(`http://localhost:5000/teams/${teamId}`, { headers: authHeaders() });
       setTeams(p => p.filter(t => t.id !== teamId));
       if (selectedTeam?.id === teamId) setSelectedTeam(null);
     } catch (err: any) { alert(err?.response?.data?.error || "Failed to delete team"); }
@@ -102,7 +102,7 @@ export default function TeamsPage() {
     if (!q.trim()) { setMemberResults([]); return; }
     const t = setTimeout(async () => {
       try {
-        const res = await axios.get(`http://192.168.11.69:5000/users/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
+        const res = await axios.get(`http://localhost:5000/users/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
         setMemberResults(res.data);
       } catch {}
     }, 300);
@@ -113,9 +113,9 @@ export default function TeamsPage() {
     if (!selectedTeam) return;
     try {
       setAddingMember(true);
-      await axios.post(`http://192.168.11.69:5000/teams/${selectedTeam.id}/members`, { userId, role: "member" }, { headers: authHeaders() });
+      await axios.post(`http://localhost:5000/teams/${selectedTeam.id}/members`, { userId, role: "member" }, { headers: authHeaders() });
       setMemberSearch(""); setMemberResults([]);
-      const res = await axios.get(`http://192.168.11.69:5000/teams/${selectedTeam.id}/members`, { headers: authHeaders() });
+      const res = await axios.get(`http://localhost:5000/teams/${selectedTeam.id}/members`, { headers: authHeaders() });
       setMembers(res.data);
       fetchTeams();
     } catch (err: any) { alert(err?.response?.data?.error || "Failed to add member"); }
@@ -125,7 +125,7 @@ export default function TeamsPage() {
   const removeMember = async (userId: number) => {
     if (!selectedTeam) return;
     try {
-      await axios.delete(`http://192.168.11.69:5000/teams/${selectedTeam.id}/members/${userId}`, { headers: authHeaders() });
+      await axios.delete(`http://localhost:5000/teams/${selectedTeam.id}/members/${userId}`, { headers: authHeaders() });
       setMembers(p => p.filter(m => m.id !== userId));
       fetchTeams();
     } catch (err: any) { alert(err?.response?.data?.error || "Failed to remove member"); }
@@ -135,11 +135,11 @@ export default function TeamsPage() {
     if (!selectedTeam || !selectedWorkspaceToAdd) return;
     try {
       setAddingWorkspace(true);
-      await axios.post(`http://192.168.11.69:5000/teams/${selectedTeam.id}/workspaces`,
+      await axios.post(`http://localhost:5000/teams/${selectedTeam.id}/workspaces`,
         { workspaceId: parseInt(selectedWorkspaceToAdd), permission: selectedPermission },
         { headers: authHeaders() }
       );
-      const res = await axios.get(`http://192.168.11.69:5000/teams/${selectedTeam.id}/workspaces`, { headers: authHeaders() });
+      const res = await axios.get(`http://localhost:5000/teams/${selectedTeam.id}/workspaces`, { headers: authHeaders() });
       setTeamWorkspaces(res.data);
       setSelectedWorkspaceToAdd(""); fetchTeams();
     } catch (err: any) { alert(err?.response?.data?.error || "Failed to add workspace"); }
@@ -149,7 +149,7 @@ export default function TeamsPage() {
   const removeWorkspace = async (workspaceId: number) => {
     if (!selectedTeam) return;
     try {
-      await axios.delete(`http://192.168.11.69:5000/teams/${selectedTeam.id}/workspaces/${workspaceId}`, { headers: authHeaders() });
+      await axios.delete(`http://localhost:5000/teams/${selectedTeam.id}/workspaces/${workspaceId}`, { headers: authHeaders() });
       setTeamWorkspaces(p => p.filter(w => w.id !== workspaceId));
       fetchTeams();
     } catch {}
